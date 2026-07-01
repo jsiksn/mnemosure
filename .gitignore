@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# 가상환경
+.venv/
+venv/
+env/
+
+# 환경변수 / 비밀 (절대 커밋 금지)
+.env
+.env.*
+!.env.example
+
+# 런타임 생성 데이터 — 기본은 무시하되, 데모 스냅샷 2개는 포함해 클론만으로 데모가 돌게 한다.
+data/*
+!data/memories.json
+!data/demo_results.json
+
+# OS / 에디터
+.DS_Store
+.idea/
+.vscode/
+
+# 로컬 에이전트 설정 (기기별 — 공개 레포에 포함하지 않는다)
+.claude/settings.local.json
