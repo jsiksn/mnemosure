@@ -19,10 +19,10 @@ env/
 .env.*
 !.env.example
 
-# 런타임 생성 데이터 — 기본은 무시하되, 데모 스냅샷 2개는 포함해 클론만으로 데모가 돌게 한다.
+# 런타임 생성 데이터 — 기본은 무시하되, 데모 시나리오 스냅샷은 포함해 클론만으로 데모가 돌게 한다.
 data/*
-!data/memories.json
-!data/demo_results.json
+!data/scenarios/
+!data/scenarios/**
 
 # OS / 에디터
 .DS_Store

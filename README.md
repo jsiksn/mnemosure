@@ -31,7 +31,7 @@ flowchart TB
         S["Session text"] --> EX["Extract · qwen3.5-flash<br/>decision / change / failure / fact"]
         EX --> EMB1["Embed · text-embedding-v4 · 1024d"]
         EMB1 --> LINK["Link associations<br/>supersedes: cosine ≥ 0.35 → flash verdict<br/>because: failure, cosine ≥ 0.15 → flash is_cause"]
-        LINK --> STORE[("data/memories.json")]
+        LINK --> STORE[("memories.json<br/>(JSON warehouse)")]
     end
 
     subgraph Recall["Recall (recall)"]
@@ -100,16 +100,17 @@ python scripts/check_models.py
 
 ## Run the demo
 
-The repository **ships with a precomputed demo snapshot** (`data/memories.json`, `data/demo_results.json`), so the demo works right after cloning:
+The repository **ships with precomputed demo snapshots** (under `data/scenarios/<key>/`), so the demo works right after cloning:
 
 ```bash
 python scripts/run_demo.py      # → http://127.0.0.1:8000
 ```
 
-The memory warehouse and the before/after evaluation panels render straight from the snapshot — **no API key needed** to browse them. Only `/ask` (live grounded recall) calls Qwen and therefore needs a key. To regenerate the snapshot from scratch (consumes quota):
+It includes **two scenarios** — a pre-market trading bot and a mobile-app UI/UX redesign — that you can switch between. Each scenario also lets you expand its **source conversations**, so you can confirm the memories were *extracted* from real multi-session chats, not hardcoded. The memory warehouse and the before/after evaluation panels render straight from the snapshot — **no API key needed** to browse them. Only `/ask` (live grounded recall) calls Qwen and therefore needs a key. To regenerate a scenario's snapshot from scratch (consumes quota):
 
 ```bash
-python scripts/gen_demo_data.py
+python scripts/gen_demo_data.py            # all scenarios (only missing ones)
+python scripts/gen_demo_data.py uiux       # a specific scenario
 ```
 
 ## Use it as an MCP server
@@ -167,11 +168,12 @@ mnemosure/
     models.py         # Memory / Association / Source dataclasses
   evaluation/         # harness · judge · label · baseline · answer_key
   demo/
-    server.py         # FastAPI: /ask · /memories · /results
-    index.html        # single-page demo UI
-    sample_sessions.py# fictional NXTBot scenario used by demo & eval
+    server.py         # FastAPI: /ask · /memories · /results · /sessions · /scenarios
+    index.html        # single-page demo UI (scenario switcher + source-transcript viewer)
+    scenarios.py      # scenario registry (sessions + answer keys + snapshot paths)
+    sample_sessions.py# fictional scenarios (trading bot, UI/UX redesign) for demo & eval
 scripts/              # check_models · gen_demo_data · run_demo · demo_* helpers
-data/                 # memories.json + demo_results.json (demo snapshot, committed)
+data/scenarios/<key>/ # per-scenario memories.json + results.json (demo snapshots, committed)
 ```
 
 ## Deployment

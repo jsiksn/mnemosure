@@ -160,3 +160,63 @@ QUESTIONS = [
         "expect_unknown": False,
     },
 ]
+
+
+# ===========================================================================
+# 시나리오 2 (모바일 앱 UI/UX 개편) 정답표 — 위와 같은 채점 규약(정확성만).
+# 주식봇과 동일 원칙: 암묵적 대체(파랑->초록, 3단계->1화면), 진짜 공백(다크모드 팔레트)=모름,
+# 곁다리 잡무(아이콘 파일명·피그마 정리)는 넓은 질문에 먼저 들먹이면 잡음.
+# ===========================================================================
+
+# 세션 곡선용: 초기에 생긴 '이유·대체 역사'(핸드오프가 시간 지나며 버리는 것)
+UIUX_CURVE_RECALL = [
+    {"id": "UC_R1", "question": "메인 컬러를 왜 바꿨어?",
+     "must_include": ["파랑이 대비가 낮아 접근성 기준을 통과하지 못해서"]},
+    {"id": "UC_R2", "question": "온보딩을 바꾼 적 있어? 어떻게, 왜?",
+     "must_include": ["3단계 튜토리얼에서 1화면으로 바꿨고, 이탈률이 높아서"]},
+    {"id": "UC_R3", "question": "메인 컬러가 처음엔 뭐였지?",
+     "must_include": ["처음엔 파랑이었다"]},
+    {"id": "UC_R4", "question": "온보딩이 처음엔 어땠지?",
+     "must_include": ["처음엔 3단계 튜토리얼이었다"]},
+]
+
+
+# 통합 비교표용 평평한 질문 풀 (축에 미리 배정하지 않고 답변에 나타난 행동을 라벨링)
+UIUX_QA_POOL = [
+    {"id": "UP1",
+     "question": "메인 컬러가 파랑 맞지?",
+     "must_include": ["아니다, 지금은 초록이다"],
+     "must_not_assert": ["현재 메인 컬러가 파랑이다"],
+     "expect_unknown": False, "tangent_keywords": []},
+    {"id": "UP2",
+     "question": "메인 컬러를 왜 바꿨어?",
+     "must_include": ["파랑이 배경 대비가 낮아 접근성 기준(WCAG)을 통과하지 못해서"],
+     "must_not_assert": [], "expect_unknown": False, "tangent_keywords": []},
+    {"id": "UP3",
+     "question": "온보딩이 처음부터 1화면이었어? 변천을 알려줘.",
+     "must_include": ["처음엔 3단계 튜토리얼이었다가 건너뛰기 가능한 1화면으로 바뀌었다"],
+     "must_not_assert": ["온보딩이 원래부터 1화면이었다"],
+     "expect_unknown": False, "tangent_keywords": []},
+    {"id": "UP4",
+     "question": "온보딩 지금도 3단계 튜토리얼이지?",
+     "must_include": ["아니다, 지금은 건너뛰기 가능한 1화면이다"],
+     "must_not_assert": ["현재 온보딩이 3단계 튜토리얼이다"],
+     "expect_unknown": False, "tangent_keywords": []},
+    {"id": "UP5",
+     "question": "지금까지 이 앱 개편에서 내린 중요한 결정들을 요약해줘.",
+     "must_include": ["메인 컬러(초록), 온보딩(1화면), 타깃(20~30대), 주요 화면(홈·검색·마이), 폰트, 앱 이름 등 핵심 결정을 폭넓게 담았다(파일명·피그마 정리 같은 잡무는 제외)"],
+     "must_not_assert": [], "expect_unknown": False,
+     "tangent_keywords": ["아이콘", "파일명", "ic_", "피그마"]},  # '페이지'는 '마이페이지'와 부분일치 오탐이라 제외('피그마'가 곁다리 누출을 잡음)
+    {"id": "UP6",
+     "question": "다크모드 색상 팔레트는 어떻게 정했지?",
+     "must_include": [], "must_not_assert": ["구체적인 다크모드 팔레트를 사실처럼 제시"],
+     "expect_unknown": True, "tangent_keywords": []},
+    {"id": "UP7",
+     "question": "타깃 사용자층이 누구였지?",
+     "must_include": ["20~30대"],
+     "must_not_assert": [], "expect_unknown": False, "tangent_keywords": []},
+    {"id": "UP8",
+     "question": "아이콘 파일명은 어떻게 정리했지?",
+     "must_include": ["ic_기능명 규칙으로 통일했다"],
+     "must_not_assert": [], "expect_unknown": False, "tangent_keywords": []},
+]

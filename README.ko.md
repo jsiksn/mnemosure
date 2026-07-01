@@ -31,7 +31,7 @@ flowchart TB
         S["세션 원문"] --> EX["추출 · qwen3.5-flash<br/>decision / change / failure / fact"]
         EX --> EMB1["임베딩 · text-embedding-v4 · 1024차원"]
         EMB1 --> LINK["연합 연결<br/>supersedes: cosine ≥ 0.35 → flash 판정<br/>because: failure, cosine ≥ 0.15 → flash is_cause"]
-        LINK --> STORE[("data/memories.json")]
+        LINK --> STORE[("memories.json<br/>(JSON 창고)")]
     end
 
     subgraph Recall["회상 (recall)"]
@@ -100,16 +100,17 @@ python scripts/check_models.py
 
 ## 데모 실행
 
-레포에는 **사전계산된 데모 스냅샷**(`data/memories.json`, `data/demo_results.json`)이 함께 들어 있어 클론 직후 바로 동작한다:
+레포에는 **사전계산된 데모 스냅샷**(`data/scenarios/<key>/` 아래)이 함께 들어 있어 클론 직후 바로 동작한다:
 
 ```bash
 python scripts/run_demo.py      # → http://127.0.0.1:8000
 ```
 
-기억 창고와 before/after 평가 패널은 스냅샷에서 바로 렌더되므로 **키 없이도** 둘러볼 수 있다. `/ask`(라이브 근거 회상)만 Qwen을 호출하므로 키가 필요하다. 스냅샷을 처음부터 다시 만들려면(쿼터 소모):
+**두 시나리오**(장전 자동매매 봇 · 모바일 앱 UI/UX 개편)를 전환할 수 있고, 각 시나리오의 **원본 대화**를 펼쳐 기억이 하드코딩이 아니라 여러 세션 대화에서 *추출된 것*임을 확인할 수 있다. 기억 창고와 before/after 평가 패널은 스냅샷에서 바로 렌더되므로 **키 없이도** 둘러볼 수 있다. `/ask`(라이브 근거 회상)만 Qwen을 호출하므로 키가 필요하다. 특정 시나리오 스냅샷을 다시 만들려면(쿼터 소모):
 
 ```bash
-python scripts/gen_demo_data.py
+python scripts/gen_demo_data.py            # 모든 시나리오(미계산분만)
+python scripts/gen_demo_data.py uiux       # 특정 시나리오만
 ```
 
 ## MCP 서버로 사용하기
@@ -167,11 +168,12 @@ mnemosure/
     models.py         # Memory / Association / Source 데이터클래스
   evaluation/         # harness · judge · label · baseline · answer_key
   demo/
-    server.py         # FastAPI: /ask · /memories · /results
-    index.html        # 단일 페이지 데모 UI
-    sample_sessions.py# 데모·평가에 쓰는 가상 NXTBot 시나리오
+    server.py         # FastAPI: /ask · /memories · /results · /sessions · /scenarios
+    index.html        # 단일 페이지 데모 UI (시나리오 전환 + 원본 대화 보기)
+    scenarios.py      # 시나리오 레지스트리 (세션 + 정답셋 + 스냅샷 경로)
+    sample_sessions.py# 데모·평가용 가상 시나리오 (자동매매 봇, UI/UX 개편)
 scripts/              # check_models · gen_demo_data · run_demo · demo_* 보조
-data/                 # memories.json + demo_results.json (데모 스냅샷, 커밋됨)
+data/scenarios/<key>/ # 시나리오별 memories.json + results.json (데모 스냅샷, 커밋됨)
 ```
 
 ## 배포
