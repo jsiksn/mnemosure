@@ -65,7 +65,23 @@ flowchart TB
 
 API 키는 **환경변수(또는 `.env`)에서만** 읽으며 코드에 하드코딩하지 않는다. 모델 ID는 위 값이 기본이고, 쿼터 소진 시 `MNEMOSURE_MODEL_*` 환경변수로 실행별 오버라이드할 수 있다 — 자동 전환은 하지 않는다. 기본값은 `mnemosure/config.py`(단일 출처)에 있다.
 
-## 빠른 시작
+## 설치
+
+```bash
+pip install mnemosure          # 코어 라이브러리 + MCP 서버
+pip install "mnemosure[demo]"  # 데모 웹 서버용 FastAPI/uvicorn 까지 함께
+```
+
+Qwen Cloud 키를 넣고(`export DASHSCOPE_API_KEY=...`) MCP 서버를 실행한다:
+
+```bash
+mnemosure-mcp                  # stdio MCP 서버
+```
+
+- **실행에는 Qwen 키가 필요하다** — Mnemosure는 Qwen 클라이언트다(추출·임베딩·재순위·답변을 모두 Qwen이 함). 키가 없으면 도구가 명확한 오류를 낸다.
+- **기억 저장 위치:** 설치본은 `~/.mnemosure/memories.json`의 *빈 창고*로 시작한다. 폴더는 `MNEMOSURE_DATA_DIR`로 바꿀 수 있다. (미리 채운 NXTBot 데모 스냅샷은 pip 패키지가 아니라 이 저장소에 있다 — 데모를 보려면 레포를 클론한다.)
+
+## 빠른 시작 (소스에서)
 
 ```bash
 # 1) 프로젝트 전용 가상환경 생성·활성화
@@ -101,25 +117,24 @@ python scripts/gen_demo_data.py
 Mnemosure는 메모리 레이어를 **Model Context Protocol**로 노출한다. 그래서 MCP를 지원하는 에이전트(Claude Desktop, Claude Code 등)라면 이걸 도구처럼 호출할 수 있다.
 
 ```bash
-python -m mnemosure.mcp_server      # stdio 전송
+mnemosure-mcp                       # pip 설치했다면
+python -m mnemosure.mcp_server      # 소스 체크아웃에서도 동일
 ```
 
-에이전트의 `.mcp.json`(또는 동급 설정)에 등록한다. 실행기의 작업 디렉터리와 무관하게 패키지를 임포트할 수 있도록 `PYTHONPATH`를 레포 루트로 지정한다:
+에이전트의 `.mcp.json`(또는 동급 설정)에 등록한다. `pip install mnemosure` 후에는 콘솔 명령 하나면 된다:
 
 ```json
 {
   "mcpServers": {
     "mnemosure": {
-      "command": "/절대경로/qwen-cloud-hackathon/.venv/bin/python",
-      "args": ["-m", "mnemosure.mcp_server"],
-      "env": {
-        "DASHSCOPE_API_KEY": "발급받은_키",
-        "PYTHONPATH": "/절대경로/qwen-cloud-hackathon"
-      }
+      "command": "mnemosure-mcp",
+      "env": { "DASHSCOPE_API_KEY": "발급받은_키" }
     }
   }
 }
 ```
+
+> 설치 대신 소스 체크아웃에서 돌린다면: `"command": "/절대경로/.venv/bin/python"`, `"args": ["-m", "mnemosure.mcp_server"]`, 그리고 작업 디렉터리와 무관하게 임포트되도록 `"PYTHONPATH": "/절대경로/레포"` 를 추가한다.
 
 도구:
 

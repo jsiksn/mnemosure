@@ -78,6 +78,11 @@ def list_memories(include_superseded: bool = False) -> list[dict]:
     ]
 
 
-if __name__ == "__main__":
-    # 기본 전송은 stdio — 에이전트가 이 프로세스를 띄워 표준입출력으로 통신한다.
+def main() -> None:
+    """콘솔 스크립트 진입점(`mnemosure-mcp`). 기본 전송은 stdio —
+    에이전트가 이 프로세스를 띄워 표준입출력으로 통신한다."""
     mcp.run()
+
+
+if __name__ == "__main__":
+    main()
