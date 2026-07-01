@@ -1,0 +1,14 @@
+# Grounded Recall 의존성
+# - openai : Chat·Embedding 을 OpenAI 호환 모드로 호출
+# - httpx  : Rerank 네이티브 엔드포인트 직접 호출 (openai 의 의존성이기도 함)
+# - numpy  : 기억끼리 의미 유사도(코사인) 계산 (2단계 연합 판정, 3단계 검색)
+openai>=1.30,<2
+httpx>=0.27
+numpy>=1.24
+# 6단계 데모 웹 서버
+fastapi>=0.110
+uvicorn>=0.29
+# 환경변수 로딩(.env 지원)
+python-dotenv>=1.0
+# MCP 서버 — 어떤 에이전트에서나 기억층을 도구로 사용 (Python 3.10+ 필요)
+mcp>=1.2

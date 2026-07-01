@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mnemosure — 데모</title>
+<style>
+  :root { --bg:#0f1115; --card:#1a1d24; --line:#2a2f3a; --fg:#e6e8ec; --mut:#9aa3b2;
+          --green:#2ecc71; --yellow:#f1c40f; --gray:#7f8c9a; --red:#e74c3c; --blue:#4aa3ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family:-apple-system,system-ui,"Apple SD Gothic Neo",sans-serif; line-height:1.5; }
+  header { padding:20px 24px; border-bottom:1px solid var(--line); }
+  header h1 { margin:0; font-size:20px; }
+  header p { margin:4px 0 0; color:var(--mut); font-size:13px; }
+  .wrap { max-width:1100px; margin:0 auto; padding:20px 24px; }
+  section { margin-bottom:28px; }
+  h2 { font-size:15px; color:var(--mut); text-transform:uppercase; letter-spacing:.05em; border-bottom:1px solid var(--line); padding-bottom:8px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  input[type=text] { flex:1; min-width:220px; background:var(--card); border:1px solid var(--line); color:var(--fg); padding:10px 12px; border-radius:8px; font-size:14px; }
+  button { background:#243; border:1px solid var(--line); color:var(--fg); padding:10px 14px; border-radius:8px; cursor:pointer; font-size:13px; }
+  button:hover { background:#2f4; color:#021; }
+  .chips button { background:var(--card); color:var(--mut); font-size:12px; padding:6px 10px; }
+  .answer { margin-top:14px; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; }
+  .badge { display:inline-block; padding:2px 10px; border-radius:999px; font-size:12px; font-weight:600; }
+  .b-확실 { background:rgba(46,204,113,.18); color:var(--green); }
+  .b-어렴풋 { background:rgba(241,196,15,.18); color:var(--yellow); }
+  .b-모름 { background:rgba(127,140,154,.2); color:var(--gray); }
+  .src { color:var(--mut); font-size:12px; margin-top:8px; }
+
+  /* 비교 표 — 모든 표 동일한 고정 폭 */
+  table.cmp { width:100%; border-collapse:collapse; font-size:13px; margin-bottom:14px; table-layout:fixed; }
+  table.cmp th, table.cmp td { border:1px solid var(--line); padding:7px 9px; text-align:center; width:16%; }
+  table.cmp th:first-child, table.cmp td:first-child { text-align:left; color:var(--fg); width:52%; word-break:keep-all; }
+  td.cell-good { color:var(--green); font-weight:700; }
+  td.cell-bad  { color:var(--red); font-weight:700; }
+  td.lbl { font-weight:700; }
+  td.lbl-정확 { color:var(--green); }
+  td.lbl-누락 { color:var(--gray); }
+  td.lbl-환각 { color:var(--red); }
+  td.lbl-기타 { color:var(--yellow); }
+  td.lbl-정직 { color:var(--blue); }
+  tr.qrow { cursor:pointer; }
+  tr.qrow:hover td { background:#1f232b; }
+  tr.qrow .caret { color:var(--mut); display:inline-block; transition:transform .15s; }
+  tr.qrow.open .caret { transform:rotate(90deg); }
+  tr.detail td { text-align:left; background:#14171d; }
+  .ansblock { margin:8px 0; font-size:12px; }
+  .ansname { color:var(--mut); font-weight:600; }
+  .anstext { margin-top:2px; }
+  .axis-title { font-size:13px; color:var(--mut); margin:6px 0; }
+  .legend { color:var(--mut); font-size:12px; }
+  svg { background:var(--card); border:1px solid var(--line); border-radius:10px; }
+  .muted { color:var(--mut); font-size:12px; }
+
+  /* 기억 카드 */
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:10px; }
+  .mem { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px; font-size:13px; }
+  .mem.superseded { opacity:.78; }
+  .grp { margin:14px 0 6px; }
+  .mem .top { display:flex; gap:6px; align-items:center; margin-bottom:6px; flex-wrap:wrap; }
+  .tag { font-size:11px; padding:1px 7px; border-radius:6px; border:1px solid var(--line); color:var(--mut); }
+  .tag.superseded { color:var(--red); border-color:var(--red); }
+  .tag.tangential { color:var(--yellow); border-color:var(--yellow); }
+  .mem .src2 { color:var(--mut); font-size:11px; margin-top:6px; }
+
+  /* 대체 체인 (옛것 → 새것, 이유 라벨) */
+  .chain { display:flex; flex-direction:column; margin-bottom:18px; }
+  .chain-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .chain-old { display:flex; flex-direction:column; gap:8px; flex:0 0 auto; }
+  .chain-arrow { flex:0 0 auto; min-width:90px; text-align:center; }
+  .arrow-line { color:var(--red); font-weight:700; }
+  .chain-new { flex:0 0 auto; }
+  .chain-reason { margin-top:10px; }
+  .chain .mem { margin:0; width:340px; max-width:100%; }
+  .chain-new .mem { border-color:var(--blue); }
+  .chain-reason .mem { border-color:var(--yellow); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Mnemosure</h1>
+  <p>모르면 모른다고, 아는 건 출처와 함께 — 근거 있는 메모리 레이어 (Qwen Cloud · Track 1)</p>
+</header>
+<div class="wrap">
+
+  <section>
+    <h2>1. 기억에게 물어보기 (라이브)</h2>
+    <div class="row">
+      <input type="text" id="q" placeholder="예: 1차 필터가 괴리율 맞지?" onkeydown="if(event.key==='Enter')doAsk()">
+      <button onclick="doAsk()">질문</button>
+    </div>
+    <div class="row chips" style="margin-top:8px">
+      <button onclick="ask('1차 필터가 괴리율 맞지?')">1차 필터 괴리율 맞지?</button>
+      <button onclick="ask('1차 필터를 왜 바꿨어?')">왜 바꿨어?</button>
+      <button onclick="ask('클라우드 사양은 어떻게 추정했었지?')">클라우드 사양은?</button>
+      <button onclick="ask('지금까지 중요한 결정들 요약해줘')">중요한 결정 요약</button>
+      <button onclick="ask('백테스트 서버는 어디에 배포했었지?')">서버 배포 위치?</button>
+    </div>
+    <div id="answer" class="answer" style="display:none"></div>
+  </section>
+
+  <section>
+    <h2>2. before / after — 기존 방식 대비</h2>
+    <div id="curve"></div>
+    <div id="axes"></div>
+  </section>
+
+  <section>
+    <h2>3. 기억 창고</h2>
+    <div class="muted" id="memcount"></div>
+    <div class="muted grp">① 대체된 결정 — 옛것(왼쪽) → 새것(오른쪽), 화살표 밑에 바뀐 이유</div>
+    <div id="chains"></div>
+    <div class="muted grp">② 유지된 핵심 결정 — 세션이 쌓여도 계속 회상되는 것들</div>
+    <div class="grid" id="kept"></div>
+    <div class="muted grp">③ 기타 사항 — 일회성 잡무 (회상 때 먼저 들먹이지 않음, 직접 물으면 답함)</div>
+    <div class="grid" id="tangential"></div>
+  </section>
+
+</div>
+<script>
+async function ask(text){ document.getElementById('q').value = text; await doAsk(); }
+
+async function doAsk(){
+  const q = document.getElementById('q').value.trim();
+  if(!q) return;
+  const box = document.getElementById('answer');
+  box.style.display='block';
+  box.innerHTML = '<span class="muted">생각 중...</span>';
+  try {
+    const r = await fetch('/ask', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question:q})});
+    const d = await r.json();
+    const conf = d.confidence || '모름';
+    box.innerHTML =
+      '<span class="badge b-'+conf+'">확신도: '+conf+'</span>'
+      + '<div style="margin-top:10px">'+escapeHtml(d.answer||'')+'</div>'
+      + (d.cited && d.cited.length ? '<div class="src">근거 기억: '+d.cited.join(', ')+'</div>' : '');
+  } catch(e){ box.innerHTML = '<span class="muted">오류: '+e+'</span>'; }
+}
+
+function escapeHtml(s){ return (s||'').replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+function memCard(m){
+  let tags = '<span class="tag">'+m.kind+'</span>';
+  if(m.status!=='active') tags += '<span class="tag superseded">'+m.status+'</span>';
+  if(m.scope==='tangential') tags += '<span class="tag tangential">기타</span>';
+  const src = (m.source.title || m.source.session_id) + ' · ' + m.source.date;
+  return '<div class="mem'+(m.status!=='active'?' superseded':'')+'">'
+    + '<div class="top"><b>'+m.id+'</b>'+tags+'</div>'
+    + '<div>'+escapeHtml(m.content)+'</div>'
+    + '<div class="src2">출처: '+escapeHtml(src)+'</div>'
+    + '</div>';
+}
+
+async function loadMemories(){
+  const r = await fetch('/memories'); const d = await r.json();
+  const byId = {}; d.memories.forEach(m=>byId[m.id]=m);
+  document.getElementById('memcount').textContent = '총 '+d.total+'개 (유효 '+d.active+'개)';
+
+  // 대체 체인: supersedes 링크가 있는 '새 결정' 기준으로 묶는다.
+  const used = new Set(); const chains = [];
+  for(const m of d.memories){
+    const olds = m.associations.filter(a=>a.type==='supersedes').map(a=>a.target_id);
+    if(olds.length){
+      const becauseId = (m.associations.find(a=>a.type==='because')||{}).target_id;
+      chains.push({newMem:m, oldIds:olds, becauseId});
+      used.add(m.id); olds.forEach(id=>used.add(id));
+      if(becauseId) used.add(becauseId);
+    }
+  }
+
+  let chainHtml='';
+  for(const ch of chains){
+    const olds = ch.oldIds.map(id=>byId[id]).filter(Boolean);
+    const reason = ch.becauseId ? byId[ch.becauseId] : null;
+    const reasonHtml = reason
+      ? '<div class="chain-reason"><div class="muted" style="margin:8px 0 4px">↳ 바뀐 이유</div>'+memCard(reason)+'</div>'
+      : '';
+    chainHtml += '<div class="chain">'
+      + '<div class="chain-row">'
+        + '<div class="chain-old">'+olds.map(memCard).join('')+'</div>'
+        + '<div class="chain-arrow"><div class="arrow-line">대체 →</div></div>'
+        + '<div class="chain-new">'+memCard(ch.newMem)+'</div>'
+      + '</div>'
+      + reasonHtml
+      + '</div>';
+  }
+  document.getElementById('chains').innerHTML = chainHtml || '<div class="muted">대체된 결정이 없습니다.</div>';
+
+  const rest = d.memories.filter(m=>!used.has(m.id));
+  const kept = rest.filter(m=>m.scope!=='tangential');
+  const tang = rest.filter(m=>m.scope==='tangential');
+  document.getElementById('kept').innerHTML = kept.map(memCard).join('') || '<div class="muted">없음</div>';
+  document.getElementById('tangential').innerHTML = tang.map(memCard).join('') || '<div class="muted">없음</div>';
+}
+
+function curveSVG(curve){
+  const W=560,H=240,pad=40;
+  const xs=curve.checkpoints, n=xs.length;
+  const X=i=> pad + (W-2*pad)*i/(n-1);
+  const Y=v=> H-pad - (H-2*pad)*v;
+  const line=(arr,color)=>{
+    const pts=arr.map((v,i)=>X(i)+','+Y(v)).join(' ');
+    let dots=arr.map((v,i)=>'<circle cx="'+X(i)+'" cy="'+Y(v)+'" r="4" fill="'+color+'"/>').join('');
+    return '<polyline points="'+pts+'" fill="none" stroke="'+color+'" stroke-width="2.5"/>'+dots;
+  };
+  let grid='';
+  for(const g of [0,.25,.5,.75,1]) grid += '<line x1="'+pad+'" y1="'+Y(g)+'" x2="'+(W-pad)+'" y2="'+Y(g)+'" stroke="#2a2f3a"/>'
+    + '<text x="'+(pad-8)+'" y="'+(Y(g)+4)+'" fill="#9aa3b2" font-size="11" text-anchor="end">'+(g*100)+'%</text>';
+  let xlab = xs.map((c,i)=>'<text x="'+X(i)+'" y="'+(H-pad+18)+'" fill="#9aa3b2" font-size="11" text-anchor="middle">'+c+'</text>').join('');
+  return '<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">'
+    + grid + xlab
+    + '<text x="'+(W/2)+'" y="'+(H-6)+'" fill="#9aa3b2" font-size="11" text-anchor="middle">세션 수</text>'
+    + line(curve.handoff,'#e74c3c') + line(curve.ours,'#4aa3ff')
+    + '</svg>'
+    + '<div class="legend"><span style="color:#4aa3ff">●</span> 우리 (평평) &nbsp;&nbsp; <span style="color:#e74c3c">●</span> 기존 핸드오프 (우하향)</div>';
+}
+
+// 행동 라벨 -> CSS 클래스 키(공백/한글 클래스명 회피).
+const LBL_KEY = {'정확':'정확','누락':'누락','환각':'환각','잡음':'기타','정직':'정직'};
+function cell(c){
+  const label = (c && c.label) || '';
+  const key = LBL_KEY[label] || '';
+  return '<td class="lbl lbl-'+key+'">'+escapeHtml(label||'-')+'</td>';
+}
+
+function ansBlock(name, c){
+  c = c || {};
+  const badge = c.conf ? '<span class="badge b-'+c.conf+'">'+c.conf+'</span> ' : '';
+  return '<div class="ansblock"><span class="ansname">'+name+'</span> '+badge
+    + '<div class="anstext">'+escapeHtml(c.ans||'(답변 없음)')+'</div></div>';
+}
+
+function toggleDetail(tr){
+  const d = tr.nextElementSibling;
+  if(d && d.classList.contains('detail')){
+    d.style.display = (d.style.display==='table-row') ? 'none' : 'table-row';
+    tr.classList.toggle('open');
+  }
+}
+
+function legendHtml(){
+  return '<div class="legend" style="margin-bottom:8px">'
+    + '<span style="color:var(--green)">●</span> 정확 &nbsp; '
+    + '<span style="color:var(--gray)">●</span> 누락(잊음) &nbsp; '
+    + '<span style="color:var(--red)">●</span> 환각(옛·거짓 단정) &nbsp; '
+    + '<span style="color:var(--yellow)">●</span> 잡음(안 물어본 불필요한 정보) &nbsp; '
+    + '<span style="color:var(--blue)">●</span> 정직(모른다고 함)<br>'
+    + '<b>행을 클릭하면 실제 답변</b>이 펼쳐집니다. (우리 답에는 확신도 배지: 확실·어렴풋·모름)</div>';
+}
+
+function compareTable(table){
+  const rows = (table && table.rows) || [];
+  let html = '<div class="axis-title"><b>같은 프로젝트 · 같은 질문 — 시스템마다 다른 행동</b> '
+    + '(질문을 미리 분류하지 않고, 각 답변에 실제로 나타난 행동을 라벨로 표시)</div>';
+  html += legendHtml();
+  html += '<table class="cmp"><tr><th>질문 (클릭)</th><th>우리</th><th>핸드오프</th><th>RAG</th></tr>';
+  for(const row of rows){
+    html += '<tr class="qrow" onclick="toggleDetail(this)">'
+      + '<td><span class="caret">▸</span> '+escapeHtml(row.q)+'</td>'
+      + cell(row['우리'])+cell(row['핸드오프'])+cell(row['RAG'])
+      + '</tr>';
+    html += '<tr class="detail" style="display:none"><td colspan="4">'
+      + ansBlock('우리', row['우리'])
+      + ansBlock('핸드오프', row['핸드오프'])
+      + ansBlock('RAG', row['RAG'])
+      + '</td></tr>';
+  }
+  html += '</table>';
+  return html;
+}
+
+async function loadResults(){
+  try{
+    const r = await fetch('/results'); const d = await r.json();
+    if(d.error){ document.getElementById('curve').innerHTML='<div class="muted">'+d.error+'</div>'; return; }
+    document.getElementById('curve').innerHTML =
+      '<div class="axis-title"><b>세션별 회상 곡선</b> — 초기 이유·역사를 세션이 쌓여도 기억하는가</div>' + curveSVG(d.curve);
+    document.getElementById('axes').innerHTML = compareTable(d.table);
+  }catch(e){ document.getElementById('curve').innerHTML='<div class="muted">결과 로드 오류: '+e+'</div>'; }
+}
+
+loadMemories(); loadResults();
+</script>
+</body>
+</html>
