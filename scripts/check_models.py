@@ -3,7 +3,7 @@
 
 Qwen 4개 모델이 모두 정상 호출되는지 각각 '최소 호출'로 확인한다.
   - qwen3.7-plus  (LLM 메인)
-  - qwen3.6-flash (LLM 보조)   ← 이번 단계에서 처음 실증
+  - qwen3.5-flash (LLM 보조)   ← 이번 단계에서 처음 실증
   - text-embedding-v4 (임베딩)
   - qwen3-rerank  (재순위, 네이티브 엔드포인트)
 
@@ -81,7 +81,7 @@ def main():
 
     checks = [
         ("LLM 메인  (qwen3.7-plus)", check_chat_plus),
-        ("LLM 보조  (qwen3.6-flash)", check_chat_flash),
+        ("LLM 보조  (qwen3.5-flash)", check_chat_flash),
         ("Embedding (text-embedding-v4)", check_embed),
         ("Rerank    (qwen3-rerank)", check_rerank),
     ]

@@ -74,6 +74,15 @@
   .chain .mem { margin:0; width:340px; max-width:100%; }
   .chain-new .mem { border-color:var(--blue); }
   .chain-reason .mem { border-color:var(--yellow); }
+
+  /* 시나리오 선택 탭 */
+  .scen-tabs { display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
+  .scen-tab { background:var(--card); color:var(--mut); }
+  .scen-tab.active { background:#243; color:var(--fg); border-color:var(--green); }
+
+  /* 원본 세션 카드 */
+  details > summary { cursor:pointer; }
+  .sesstext { white-space:pre-wrap; word-break:break-word; margin:8px 0 0; font-size:12px; color:var(--fg); font-family:inherit; }
 </style>
 </head>
 <body>
@@ -83,19 +92,15 @@
 </header>
 <div class="wrap">
 
+  <div class="scen-tabs" id="scenTabs"></div>
+
   <section>
     <h2>1. 기억에게 물어보기 (라이브)</h2>
     <div class="row">
       <input type="text" id="q" placeholder="예: 1차 필터가 괴리율 맞지?" onkeydown="if(event.key==='Enter')doAsk()">
       <button onclick="doAsk()">질문</button>
     </div>
-    <div class="row chips" style="margin-top:8px">
-      <button onclick="ask('1차 필터가 괴리율 맞지?')">1차 필터 괴리율 맞지?</button>
-      <button onclick="ask('1차 필터를 왜 바꿨어?')">왜 바꿨어?</button>
-      <button onclick="ask('클라우드 사양은 어떻게 추정했었지?')">클라우드 사양은?</button>
-      <button onclick="ask('지금까지 중요한 결정들 요약해줘')">중요한 결정 요약</button>
-      <button onclick="ask('백테스트 서버는 어디에 배포했었지?')">서버 배포 위치?</button>
-    </div>
+    <div class="row chips" id="chips" style="margin-top:8px"></div>
     <div id="answer" class="answer" style="display:none"></div>
   </section>
 
@@ -103,6 +108,14 @@
     <h2>2. before / after — 기존 방식 대비</h2>
     <div id="curve"></div>
     <div id="axes"></div>
+  </section>
+
+  <section>
+    <h2>원본 세션 (입력) — 이 기억들이 어디서 왔나</h2>
+    <details>
+      <summary class="muted">원본 대화 전문 펼치기 — 기억은 하드코딩이 아니라, 아래 대화들에서 추출·연결된 것입니다.</summary>
+      <div class="grid" id="sessions" style="margin-top:12px"></div>
+    </details>
   </section>
 
   <section>
@@ -118,6 +131,9 @@
 
 </div>
 <script>
+let SCEN = null;   // 현재 선택된 시나리오 key
+let SCENS = [];    // 시나리오 목록(예시 질문 포함)
+
 async function ask(text){ document.getElementById('q').value = text; await doAsk(); }
 
 async function doAsk(){
@@ -127,7 +143,7 @@ async function doAsk(){
   box.style.display='block';
   box.innerHTML = '<span class="muted">생각 중...</span>';
   try {
-    const r = await fetch('/ask', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question:q})});
+    const r = await fetch('/ask', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question:q, scenario:SCEN})});
     const d = await r.json();
     const conf = d.confidence || '모름';
     box.innerHTML =
@@ -152,7 +168,7 @@ function memCard(m){
 }
 
 async function loadMemories(){
-  const r = await fetch('/memories'); const d = await r.json();
+  const r = await fetch('/memories?scenario='+encodeURIComponent(SCEN)); const d = await r.json();
   const byId = {}; d.memories.forEach(m=>byId[m.id]=m);
   document.getElementById('memcount').textContent = '총 '+d.total+'개 (유효 '+d.active+'개)';
 
@@ -271,15 +287,62 @@ function compareTable(table){
 
 async function loadResults(){
   try{
-    const r = await fetch('/results'); const d = await r.json();
-    if(d.error){ document.getElementById('curve').innerHTML='<div class="muted">'+d.error+'</div>'; return; }
+    const r = await fetch('/results?scenario='+encodeURIComponent(SCEN)); const d = await r.json();
+    if(d.error){ document.getElementById('curve').innerHTML='<div class="muted">'+d.error+'</div>'; document.getElementById('axes').innerHTML=''; return; }
     document.getElementById('curve').innerHTML =
       '<div class="axis-title"><b>세션별 회상 곡선</b> — 초기 이유·역사를 세션이 쌓여도 기억하는가</div>' + curveSVG(d.curve);
     document.getElementById('axes').innerHTML = compareTable(d.table);
   }catch(e){ document.getElementById('curve').innerHTML='<div class="muted">결과 로드 오류: '+e+'</div>'; }
 }
 
-loadMemories(); loadResults();
+// --- 원본 세션(입력) ---
+function sessionCard(s){
+  return '<div class="mem"><div class="top"><b>'+escapeHtml(s.title||s.session_id)+'</b>'
+    + '<span class="tag">'+escapeHtml(s.date||'')+'</span></div>'
+    + '<pre class="sesstext">'+escapeHtml(s.text||'')+'</pre></div>';
+}
+async function loadSessions(){
+  const box = document.getElementById('sessions');
+  try{
+    const r = await fetch('/sessions?scenario='+encodeURIComponent(SCEN));
+    const d = await r.json();
+    box.innerHTML = (d.sessions||[]).map(sessionCard).join('') || '<div class="muted">원본 세션 없음</div>';
+  }catch(e){ box.innerHTML = '<div class="muted">세션 로드 오류: '+e+'</div>'; }
+}
+
+// --- 시나리오 선택 ---
+function markActive(){
+  document.querySelectorAll('#scenTabs .scen-tab').forEach(b=>{
+    b.classList.toggle('active', b.getAttribute('data-key')===SCEN);
+  });
+}
+function renderChips(){
+  const sc = SCENS.find(s=>s.key===SCEN) || {};
+  const qs = sc.sample_questions || [];
+  const box = document.getElementById('chips');
+  box.innerHTML = qs.map(q=>'<button>'+escapeHtml(q)+'</button>').join('');
+  box.querySelectorAll('button').forEach(b=>{ b.onclick=()=>ask(b.textContent); });
+}
+function resetAnswer(){
+  const box=document.getElementById('answer'); box.style.display='none'; box.innerHTML='';
+  document.getElementById('q').value='';
+}
+function renderAll(){ loadMemories(); loadResults(); loadSessions(); }
+function onScenarioChange(){ markActive(); renderChips(); resetAnswer(); renderAll(); }
+
+async function loadScenarios(){
+  const r = await fetch('/scenarios'); const d = await r.json();
+  SCENS = d.scenarios || [];
+  SCEN = d.default || (SCENS[0] && SCENS[0].key);
+  document.getElementById('scenTabs').innerHTML = SCENS.map(s=>
+    '<button class="scen-tab btn" data-key="'+s.key+'">'+escapeHtml(s.title)+'</button>').join('');
+  document.querySelectorAll('#scenTabs .scen-tab').forEach(b=>{
+    b.onclick=()=>{ SCEN=b.getAttribute('data-key'); onScenarioChange(); };
+  });
+  onScenarioChange();
+}
+
+loadScenarios();
 </script>
 </body>
 </html>
