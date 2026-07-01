@@ -65,7 +65,23 @@ flowchart TB
 
 The API key is read **only** from the environment (or `.env`) and is never hard-coded. Model IDs default to the values above; override them per-run with `MNEMOSURE_MODEL_*` env vars if a quota runs out — there is no automatic switching. Defaults live in `mnemosure/config.py` (the single source of truth).
 
-## Quick start
+## Install
+
+```bash
+pip install mnemosure          # core library + MCP server
+pip install "mnemosure[demo]"  # also pulls FastAPI/uvicorn for the demo web server
+```
+
+Then provide your Qwen Cloud key (`export DASHSCOPE_API_KEY=...`) and run the MCP server:
+
+```bash
+mnemosure-mcp                  # stdio MCP server
+```
+
+- **A Qwen key is required at runtime** — Mnemosure is a Qwen client (extraction, embeddings, rerank, answering all run on Qwen). Without a key the tools raise a clear error.
+- **Where memories are stored:** an installed copy starts with an *empty* warehouse at `~/.mnemosure/memories.json`. Override the directory with `MNEMOSURE_DATA_DIR`. (The pre-loaded NXTBot demo snapshot lives in this repository, not in the pip package — clone the repo to see it.)
+
+## Quick start (from source)
 
 ```bash
 # 1) create and activate a project virtual environment
@@ -101,25 +117,24 @@ python scripts/gen_demo_data.py
 Mnemosure exposes the memory layer over the **Model Context Protocol**, so any MCP-capable agent (Claude Desktop, Claude Code, …) can call it as a tool.
 
 ```bash
-python -m mnemosure.mcp_server      # stdio transport
+mnemosure-mcp                       # if installed via pip
+python -m mnemosure.mcp_server      # equivalent, from a source checkout
 ```
 
-Register it in your agent's `.mcp.json` (or equivalent). Set `PYTHONPATH` to the repo root so the package is importable regardless of the launcher's working directory:
+Register it in your agent's `.mcp.json` (or equivalent). After `pip install mnemosure`, the console command is enough:
 
 ```json
 {
   "mcpServers": {
     "mnemosure": {
-      "command": "/absolute/path/to/qwen-cloud-hackathon/.venv/bin/python",
-      "args": ["-m", "mnemosure.mcp_server"],
-      "env": {
-        "DASHSCOPE_API_KEY": "your-dashscope-api-key",
-        "PYTHONPATH": "/absolute/path/to/qwen-cloud-hackathon"
-      }
+      "command": "mnemosure-mcp",
+      "env": { "DASHSCOPE_API_KEY": "your-dashscope-api-key" }
     }
   }
 }
 ```
+
+> Running from a source checkout instead of an install? Use `"command": "/abs/path/.venv/bin/python"`, `"args": ["-m", "mnemosure.mcp_server"]`, and add `"PYTHONPATH": "/abs/path/to/repo"` so the package is importable regardless of the launcher's working directory.
 
 Tools:
 

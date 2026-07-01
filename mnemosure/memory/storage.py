@@ -12,9 +12,24 @@ from typing import Optional
 
 from .models import Memory
 
-# 프로젝트 루트/data/memories.json 를 기본 저장 위치로 한다.
+# 기본 저장 위치를 문맥에 맞게 정한다:
+#   1) 환경변수 MNEMOSURE_DATA_DIR 이 있으면 그 폴더의 memories.json (배포·커스텀 우선)
+#   2) 소스 체크아웃(레포 루트에 pyproject.toml)에서 돌면 레포의 data/memories.json
+#      → 데모·개발 스크립트가 커밋된 스냅샷을 그대로 쓴다(동작 불변)
+#   3) pip 로 설치돼 쓰일 땐 사용자 홈의 ~/.mnemosure/memories.json (빈 창고로 시작)
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DEFAULT_PATH = os.path.join(_ROOT, "data", "memories.json")
+
+
+def _resolve_default_path() -> str:
+    env_dir = os.environ.get("MNEMOSURE_DATA_DIR")
+    if env_dir:
+        return os.path.join(env_dir, "memories.json")
+    if os.path.isfile(os.path.join(_ROOT, "pyproject.toml")):
+        return os.path.join(_ROOT, "data", "memories.json")
+    return os.path.join(os.path.expanduser("~"), ".mnemosure", "memories.json")
+
+
+DEFAULT_PATH = _resolve_default_path()
 
 
 class MemoryStore:
