@@ -6,4 +6,4 @@ Mnemosure — 근거 있는 회상 메모리 레이어.
 """
 
 # 버전 단일 출처(single source of truth). pyproject.toml 이 여기서 버전을 읽어간다.
-__version__ = "0.2.0"
+__version__ = "0.2.1"
