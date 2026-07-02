@@ -32,7 +32,7 @@ SCENARIOS_DIR = os.path.join(_ROOT, "data", "scenarios")
 SCENARIOS = [
     {
         "key": "nxtbot",
-        "title": "장전 자동매매 봇 (NXTBot)",
+        "title": "장전 자동매매 봇",
         "eval_sessions": EVAL_SESSIONS,
         "curve_sessions": CURVE_SESSIONS,
         "qa_pool": QA_POOL,
