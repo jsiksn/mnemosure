@@ -163,60 +163,75 @@ QUESTIONS = [
 
 
 # ===========================================================================
-# 시나리오 2 (모바일 앱 UI/UX 개편) 정답표 — 위와 같은 채점 규약(정확성만).
-# 주식봇과 동일 원칙: 암묵적 대체(파랑->초록, 3단계->1화면), 진짜 공백(다크모드 팔레트)=모름,
-# 곁다리 잡무(아이콘 파일명·피그마 정리)는 넓은 질문에 먼저 들먹이면 잡음.
+# 시나리오 2 (SaaS 구독 요금제 개편) 정답표 — 위와 같은 채점 규약(정확성만).
+# 정보량이 많은 도메인: 티어·가격·한도·체험·할인이 여러 개라 핸드오프 요약이 흘리고(누락),
+# 옛 숫자가 여러 세션에 남아 단순 RAG가 폐기된 숫자를 우기기 쉽다(환각).
+# 수치 대체 4건: Pro $12->$9, 체험 14->30일, Free 3->1프로젝트, 연간할인 20->15%.
+# 차별 포인트: '부분지식'(엔터프라이즈 티어는 신설했으나 가격은 미정) — 아는것/모르는것 분리.
 # ===========================================================================
 
-# 세션 곡선용: 초기에 생긴 '이유·대체 역사'(핸드오프가 시간 지나며 버리는 것)
-UIUX_CURVE_RECALL = [
-    {"id": "UC_R1", "question": "메인 컬러를 왜 바꿨어?",
-     "must_include": ["파랑이 대비가 낮아 접근성 기준을 통과하지 못해서"]},
-    {"id": "UC_R2", "question": "온보딩을 바꾼 적 있어? 어떻게, 왜?",
-     "must_include": ["3단계 튜토리얼에서 1화면으로 바꿨고, 이탈률이 높아서"]},
-    {"id": "UC_R3", "question": "메인 컬러가 처음엔 뭐였지?",
-     "must_include": ["처음엔 파랑이었다"]},
-    {"id": "UC_R4", "question": "온보딩이 처음엔 어땠지?",
-     "must_include": ["처음엔 3단계 튜토리얼이었다"]},
+# 세션 곡선용: 초기에 생긴 '수치·이유·대체 역사'(핸드오프가 시간 지나며 버리는 것)
+PRICING_CURVE_RECALL = [
+    {"id": "PC_R1", "question": "Pro 요금을 왜 내렸어?",
+     "must_include": ["경쟁사 대비 비싸서(가격 경쟁력이 낮아서)"]},
+    {"id": "PC_R2", "question": "무료 체험을 왜 늘렸어?",
+     "must_include": ["유료 전환율이 낮아서"]},
+    {"id": "PC_R3", "question": "Free 프로젝트 한도를 왜 줄였어?",
+     "must_include": ["Free 플랜 남용 때문에"]},
+    {"id": "PC_R4", "question": "Pro 요금이 처음엔 얼마였지?",
+     "must_include": ["처음엔 월 12달러였다"]},
+    {"id": "PC_R5", "question": "연간 할인이 처음엔 몇 %였지?",
+     "must_include": ["처음엔 20%였다"]},
 ]
 
 
 # 통합 비교표용 평평한 질문 풀 (축에 미리 배정하지 않고 답변에 나타난 행동을 라벨링)
-UIUX_QA_POOL = [
-    {"id": "UP1",
-     "question": "메인 컬러가 파랑 맞지?",
-     "must_include": ["아니다, 지금은 초록이다"],
-     "must_not_assert": ["현재 메인 컬러가 파랑이다"],
+PRICING_QA_POOL = [
+    {"id": "PP1",
+     "question": "지금 Pro 요금이 월 12달러 맞지?",
+     "must_include": ["아니다, 지금은 월 9달러다"],
+     "must_not_assert": ["현재 Pro 요금이 월 12달러다"],
      "expect_unknown": False, "tangent_keywords": []},
-    {"id": "UP2",
-     "question": "메인 컬러를 왜 바꿨어?",
-     "must_include": ["파랑이 배경 대비가 낮아 접근성 기준(WCAG)을 통과하지 못해서"],
+    {"id": "PP2",
+     "question": "Pro 요금을 왜 내렸어?",
+     "must_include": ["경쟁사 대비 비싸다는 피드백 때문에"],
      "must_not_assert": [], "expect_unknown": False, "tangent_keywords": []},
-    {"id": "UP3",
-     "question": "온보딩이 처음부터 1화면이었어? 변천을 알려줘.",
-     "must_include": ["처음엔 3단계 튜토리얼이었다가 건너뛰기 가능한 1화면으로 바뀌었다"],
-     "must_not_assert": ["온보딩이 원래부터 1화면이었다"],
+    {"id": "PP3",
+     "question": "무료 체험이 14일 맞지?",
+     "must_include": ["아니다, 지금은 30일이다"],
+     "must_not_assert": ["현재 무료 체험이 14일이다"],
      "expect_unknown": False, "tangent_keywords": []},
-    {"id": "UP4",
-     "question": "온보딩 지금도 3단계 튜토리얼이지?",
-     "must_include": ["아니다, 지금은 건너뛰기 가능한 1화면이다"],
-     "must_not_assert": ["현재 온보딩이 3단계 튜토리얼이다"],
+    {"id": "PP4",
+     "question": "연간 결제 할인이 20% 맞지?",
+     "must_include": ["아니다, 지금은 15%다"],
+     "must_not_assert": ["현재 연간 할인이 20%다"],
      "expect_unknown": False, "tangent_keywords": []},
-    {"id": "UP5",
-     "question": "지금까지 이 앱 개편에서 내린 중요한 결정들을 요약해줘.",
-     "must_include": ["메인 컬러(초록), 온보딩(1화면), 타깃(20~30대), 주요 화면(홈·검색·마이), 폰트, 앱 이름 등 핵심 결정을 폭넓게 담았다(파일명·피그마 정리 같은 잡무는 제외)"],
+    {"id": "PP5",
+     "question": "Free 플랜 프로젝트 한도가 3개 맞지?",
+     "must_include": ["아니다, 지금은 1개다"],
+     "must_not_assert": ["현재 Free 프로젝트 한도가 3개다"],
+     "expect_unknown": False, "tangent_keywords": []},
+    {"id": "PP6",
+     "question": "Pro 가격이 어떻게 바뀌었어?",
+     "must_include": ["처음엔 월 12달러였다가 월 9달러로 인하됐다"],
+     "must_not_assert": ["Pro 가격이 원래부터 9달러였다"],
+     "expect_unknown": False, "tangent_keywords": []},
+    {"id": "PP7",
+     "question": "지금까지 정한 요금 정책을 요약해줘.",
+     "must_include": ["3티어(Free/Pro/Team), Pro 월 $9, Team 월 $30, 무료 체험 30일, 연간 할인 15%, Free 프로젝트 1개, 결제(카드·페이팔)·환불(7일) 등 핵심을 폭넓게 담았다(인보이스 로고·재시도 로그 같은 잡무는 제외)"],
      "must_not_assert": [], "expect_unknown": False,
-     "tangent_keywords": ["아이콘", "파일명", "ic_", "피그마"]},  # '페이지'는 '마이페이지'와 부분일치 오탐이라 제외('피그마'가 곁다리 누출을 잡음)
-    {"id": "UP6",
-     "question": "다크모드 색상 팔레트는 어떻게 정했지?",
-     "must_include": [], "must_not_assert": ["구체적인 다크모드 팔레트를 사실처럼 제시"],
-     "expect_unknown": True, "tangent_keywords": []},
-    {"id": "UP7",
-     "question": "타깃 사용자층이 누구였지?",
-     "must_include": ["20~30대"],
+     "tangent_keywords": ["인보이스", "로고", "재시도", "로그"]},
+    {"id": "PP8",
+     "question": "엔터프라이즈 요금은 얼마로 정했어?",
+     "must_include": ["엔터프라이즈 티어는 신설하기로 했으나, 가격은 아직 정하지 않았다(기록에 없다)"],
+     "must_not_assert": ["구체적인 엔터프라이즈 가격을 사실처럼 제시"],
+     "expect_unknown": False, "tangent_keywords": []},
+    {"id": "PP9",
+     "question": "Team 요금은 얼마야?",
+     "must_include": ["월 30달러"],
      "must_not_assert": [], "expect_unknown": False, "tangent_keywords": []},
-    {"id": "UP8",
-     "question": "아이콘 파일명은 어떻게 정리했지?",
-     "must_include": ["ic_기능명 규칙으로 통일했다"],
+    {"id": "PP10",
+     "question": "환불 정책이 어떻게 돼?",
+     "must_include": ["결제 후 7일 이내 전액 환불"],
      "must_not_assert": [], "expect_unknown": False, "tangent_keywords": []},
 ]
