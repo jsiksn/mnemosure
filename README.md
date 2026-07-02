@@ -136,6 +136,26 @@ Register it in your agent's `.mcp.json` (or equivalent). After `pip install mnem
 }
 ```
 
+The `.mcp.json` above works with any MCP client. **Claude Code** users can skip the hand-editing and register it in one line:
+
+```bash
+claude mcp add mnemosure --env DASHSCOPE_API_KEY=your-key -- mnemosure-mcp
+```
+
+**Zero-install with [uv](https://docs.astral.sh/uv/)** — run it straight from PyPI without `pip install` (the console script `mnemosure-mcp` differs from the package name `mnemosure`, so pass `--from`):
+
+```json
+{
+  "mcpServers": {
+    "mnemosure": {
+      "command": "uvx",
+      "args": ["--from", "mnemosure", "mnemosure-mcp"],
+      "env": { "DASHSCOPE_API_KEY": "your-dashscope-api-key" }
+    }
+  }
+}
+```
+
 > Running from a source checkout instead of an install? Use `"command": "/abs/path/.venv/bin/python"`, `"args": ["-m", "mnemosure.mcp_server"]`, and add `"PYTHONPATH": "/abs/path/to/repo"` so the package is importable regardless of the launcher's working directory.
 
 Tools:

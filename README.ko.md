@@ -136,6 +136,26 @@ python -m mnemosure.mcp_server      # 소스 체크아웃에서도 동일
 }
 ```
 
+위 `.mcp.json`은 어떤 MCP 클라이언트에서나 동작한다. **Claude Code**라면 JSON 손편집 없이 한 줄로 등록할 수 있다:
+
+```bash
+claude mcp add mnemosure --env DASHSCOPE_API_KEY=발급받은_키 -- mnemosure-mcp
+```
+
+**[uv](https://docs.astral.sh/uv/) 무설치 실행** — `pip install` 없이 PyPI에서 바로 실행한다(콘솔 스크립트명 `mnemosure-mcp`가 패키지명 `mnemosure`와 달라 `--from` 필요):
+
+```json
+{
+  "mcpServers": {
+    "mnemosure": {
+      "command": "uvx",
+      "args": ["--from", "mnemosure", "mnemosure-mcp"],
+      "env": { "DASHSCOPE_API_KEY": "발급받은_키" }
+    }
+  }
+}
+```
+
 > 설치 대신 소스 체크아웃에서 돌린다면: `"command": "/절대경로/.venv/bin/python"`, `"args": ["-m", "mnemosure.mcp_server"]`, 그리고 작업 디렉터리와 무관하게 임포트되도록 `"PYTHONPATH": "/절대경로/레포"` 를 추가한다.
 
 도구:
