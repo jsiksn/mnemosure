@@ -13,15 +13,15 @@ import os
 
 from ..evaluation.answer_key import (
     CURVE_RECALL,
+    PRICING_CURVE_RECALL,
+    PRICING_QA_POOL,
     QA_POOL,
-    UIUX_CURVE_RECALL,
-    UIUX_QA_POOL,
 )
 from .sample_sessions import (
     CURVE_SESSIONS,
     EVAL_SESSIONS,
-    UIUX_CURVE_SESSIONS,
-    UIUX_EVAL_SESSIONS,
+    PRICING_CURVE_SESSIONS,
+    PRICING_EVAL_SESSIONS,
 )
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -47,18 +47,18 @@ SCENARIOS = [
         ],
     },
     {
-        "key": "uiux",
-        "title": "모바일 앱 UI/UX 개편",
-        "eval_sessions": UIUX_EVAL_SESSIONS,
-        "curve_sessions": UIUX_CURVE_SESSIONS,
-        "qa_pool": UIUX_QA_POOL,
-        "curve_recall": UIUX_CURVE_RECALL,
+        "key": "pricing",
+        "title": "구독 요금제 개편",
+        "eval_sessions": PRICING_EVAL_SESSIONS,
+        "curve_sessions": PRICING_CURVE_SESSIONS,
+        "qa_pool": PRICING_QA_POOL,
+        "curve_recall": PRICING_CURVE_RECALL,
         "sample_questions": [
-            "메인 컬러가 파랑 맞지?",
-            "메인 컬러를 왜 바꿨어?",
-            "온보딩이 지금도 3단계 튜토리얼이지?",
-            "지금까지 중요한 결정들 요약해줘",
-            "다크모드 색상 팔레트는 어떻게 정했지?",
+            "지금 Pro 요금이 월 12달러 맞지?",
+            "Pro 요금을 왜 내렸어?",
+            "연간 결제 할인이 20% 맞지?",
+            "지금까지 정한 요금 정책을 요약해줘",
+            "엔터프라이즈 요금은 얼마로 정했어?",
         ],
     },
 ]

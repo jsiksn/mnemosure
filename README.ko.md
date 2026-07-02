@@ -106,7 +106,7 @@ python scripts/check_models.py
 python scripts/run_demo.py      # → http://127.0.0.1:8000
 ```
 
-**두 시나리오**(장전 자동매매 봇 · 모바일 앱 UI/UX 개편)를 전환할 수 있고, 각 시나리오의 **원본 대화**를 펼쳐 기억이 하드코딩이 아니라 여러 세션 대화에서 *추출된 것*임을 확인할 수 있다. 기억 창고와 before/after 평가 패널은 스냅샷에서 바로 렌더되므로 **키 없이도** 둘러볼 수 있다. `/ask`(라이브 근거 회상)만 Qwen을 호출하므로 키가 필요하다. 특정 시나리오 스냅샷을 다시 만들려면(쿼터 소모):
+**두 시나리오**(장전 자동매매 봇 · SaaS 구독 요금제 개편)를 전환할 수 있고, 각 시나리오의 **원본 대화**를 펼쳐 기억이 하드코딩이 아니라 여러 세션 대화에서 *추출된 것*임을 확인할 수 있다. 기억 창고와 before/after 평가 패널은 스냅샷에서 바로 렌더되므로 **키 없이도** 둘러볼 수 있다. `/ask`(라이브 근거 회상)만 Qwen을 호출하므로 키가 필요하다. 특정 시나리오 스냅샷을 다시 만들려면(쿼터 소모):
 
 ```bash
 python scripts/gen_demo_data.py            # 모든 시나리오(미계산분만)
@@ -171,7 +171,7 @@ mnemosure/
     server.py         # FastAPI: /ask · /memories · /results · /sessions · /scenarios
     index.html        # 단일 페이지 데모 UI (시나리오 전환 + 원본 대화 보기)
     scenarios.py      # 시나리오 레지스트리 (세션 + 정답셋 + 스냅샷 경로)
-    sample_sessions.py# 데모·평가용 가상 시나리오 (자동매매 봇, UI/UX 개편)
+    sample_sessions.py# 데모·평가용 가상 시나리오 (자동매매 봇, 구독 요금제 개편)
 scripts/              # check_models · gen_demo_data · run_demo · demo_* 보조
 data/scenarios/<key>/ # 시나리오별 memories.json + results.json (데모 스냅샷, 커밋됨)
 ```

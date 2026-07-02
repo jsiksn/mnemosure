@@ -106,7 +106,7 @@ The repository **ships with precomputed demo snapshots** (under `data/scenarios/
 python scripts/run_demo.py      # → http://127.0.0.1:8000
 ```
 
-It includes **two scenarios** — a pre-market trading bot and a mobile-app UI/UX redesign — that you can switch between. Each scenario also lets you expand its **source conversations**, so you can confirm the memories were *extracted* from real multi-session chats, not hardcoded. The memory warehouse and the before/after evaluation panels render straight from the snapshot — **no API key needed** to browse them. Only `/ask` (live grounded recall) calls Qwen and therefore needs a key. To regenerate a scenario's snapshot from scratch (consumes quota):
+It includes **two scenarios** — a pre-market trading bot and a SaaS subscription-pricing revamp — that you can switch between. Each scenario also lets you expand its **source conversations**, so you can confirm the memories were *extracted* from real multi-session chats, not hardcoded. The memory warehouse and the before/after evaluation panels render straight from the snapshot — **no API key needed** to browse them. Only `/ask` (live grounded recall) calls Qwen and therefore needs a key. To regenerate a scenario's snapshot from scratch (consumes quota):
 
 ```bash
 python scripts/gen_demo_data.py            # all scenarios (only missing ones)
@@ -171,7 +171,7 @@ mnemosure/
     server.py         # FastAPI: /ask · /memories · /results · /sessions · /scenarios
     index.html        # single-page demo UI (scenario switcher + source-transcript viewer)
     scenarios.py      # scenario registry (sessions + answer keys + snapshot paths)
-    sample_sessions.py# fictional scenarios (trading bot, UI/UX redesign) for demo & eval
+    sample_sessions.py# fictional scenarios (trading bot, subscription pricing) for demo & eval
 scripts/              # check_models · gen_demo_data · run_demo · demo_* helpers
 data/scenarios/<key>/ # per-scenario memories.json + results.json (demo snapshots, committed)
 ```
