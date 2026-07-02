@@ -68,9 +68,10 @@ The API key is read **only** from the environment (or `.env`) and is never hard-
 ## Install
 
 ```bash
-pip install mnemosure          # core library + MCP server
-pip install "mnemosure[demo]"  # also pulls FastAPI/uvicorn for the demo web server
+pip install mnemosure          # the core product: memory library + MCP server
 ```
+
+The pip package ships **only the product** (`config`, `qwen_client`, `mcp_server`, `memory/`). The web demo and evaluation harness live in this repository (clone it to run them) — see *Run the demo* below.
 
 Then provide your Qwen Cloud key (`export DASHSCOPE_API_KEY=...`) and run the MCP server:
 
