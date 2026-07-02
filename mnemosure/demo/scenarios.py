@@ -53,6 +53,9 @@ SCENARIOS = [
         "curve_sessions": PRICING_CURVE_SESSIONS,
         "qa_pool": PRICING_QA_POOL,
         "curve_recall": PRICING_CURVE_RECALL,
+        # 곡선이 테스트하는 마지막 변경(Free 한도 축소)이 5번째 세션에 일어나므로,
+        # 측정은 세션 5 이후부터(그 전엔 사건이 없어 회상 불가 → 우리도 낮게 나옴).
+        "curve_checkpoints": [5, 6, 7, 8, 9],
         "sample_questions": [
             "지금 Pro 요금이 월 12달러 맞지?",
             "Pro 요금을 왜 내렸어?",

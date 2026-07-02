@@ -58,23 +58,25 @@ def _parallel(thunks, workers=6):
 
 
 # --- 곡선: '초기 이유·역사'를 세션이 쌓여도 회상하는가 (우리 vs 핸드오프) ------------
-def build_curve(curve_sessions, curve_recall, tmp_path):
+def build_curve(curve_sessions, curve_recall, tmp_path, checkpoints=CURVE_CHECKPOINTS):
     # 1) 한 번만 점진 적재하며 체크포인트마다 (기억 스냅샷, 핸드오프 노트) 저장.
+    #    checkpoints는 '측정 시점(세션 수)'. 시나리오가 테스트하는 마지막 변경이 늦게 일어나면
+    #    그 이후부터 재도록 시나리오별로 지정한다(그 전엔 사건이 없어 아무도 못 답함).
     store = fresh_store(tmp_path)
     base = HandoffBaseline(budget=HANDOFF_BUDGET_CURVE)
     snaps = {}
     for i, s in enumerate(curve_sessions, 1):
-        if i > max(CURVE_CHECKPOINTS):
+        if i > max(checkpoints):
             break
         ingest_session(s["session_id"], s["date"], s["text"], store)
         base.ingest(s["text"])
-        if i in CURVE_CHECKPOINTS:
+        if i in checkpoints:
             snaps[i] = ([m.to_dict() for m in store.memories], base.note)
     usage_line("curve-적재")
 
     # 2) 모든 측정(체크포인트 × 반복 × 시스템 × 문항)을 한꺼번에 병렬 실행 후 (cp,시스템)별 평균.
     tasks, meta = [], []
-    for cp in CURVE_CHECKPOINTS:
+    for cp in checkpoints:
         mem_dicts, note = snaps[cp]
         snap_store = MemoryStore(path=tmp_path)
         snap_store.memories = [Memory.from_dict(d) for d in mem_dicts]
@@ -98,12 +100,12 @@ def build_curve(curve_sessions, curve_recall, tmp_path):
         a = agg.setdefault((cp, sysname), [0, 0])
         a[0] += 1 if ok else 0
         a[1] += 1
-    handoff = [round(agg[(cp, "handoff")][0] / agg[(cp, "handoff")][1], 3) for cp in CURVE_CHECKPOINTS]
-    ours = [round(agg[(cp, "ours")][0] / agg[(cp, "ours")][1], 3) for cp in CURVE_CHECKPOINTS]
-    for k, cp in enumerate(CURVE_CHECKPOINTS):
+    handoff = [round(agg[(cp, "handoff")][0] / agg[(cp, "handoff")][1], 3) for cp in checkpoints]
+    ours = [round(agg[(cp, "ours")][0] / agg[(cp, "ours")][1], 3) for cp in checkpoints]
+    for k, cp in enumerate(checkpoints):
         print(f"   cp{cp}: 핸드오프 {handoff[k] * 100:.0f}% / 우리 {ours[k] * 100:.0f}%")
     usage_line("curve-측정")
-    return {"checkpoints": CURVE_CHECKPOINTS, "handoff": handoff, "ours": ours}
+    return {"checkpoints": checkpoints, "handoff": handoff, "ours": ours}
 
 
 # --- 비교표: 같은 질문에 시스템(우리/핸드오프/RAG)마다 다른 '행동 라벨' -----------------
@@ -220,7 +222,8 @@ def build_scenario(sc):
         print(f"[{key}] 2) 곡선 이미 계산됨 — 건너뜀")
     else:
         print(f"[{key}] 2) 세션 곡선 (3회 재측정 평균)")
-        results["curve"] = build_curve(sc["curve_sessions"], sc["curve_recall"], tmp_path)
+        checkpoints = sc.get("curve_checkpoints", CURVE_CHECKPOINTS)
+        results["curve"] = build_curve(sc["curve_sessions"], sc["curve_recall"], tmp_path, checkpoints)
         _save_results(results_path, results)
         usage_line("curve-saved")
 
