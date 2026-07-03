@@ -45,6 +45,12 @@ def index():
     return FileResponse(os.path.join(HERE, "index.html"))
 
 
+@app.get("/health")
+def health():
+    """컨테이너·로드밸런서 상태 점검용. Qwen 호출 없이 즉시 응답."""
+    return {"status": "ok", "scenarios": [s["key"] for s in scenarios.all_scenarios()]}
+
+
 @app.get("/scenarios")
 def list_scenarios():
     """데모 시나리오 목록(선택기용)."""
