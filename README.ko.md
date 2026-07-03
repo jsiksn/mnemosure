@@ -199,7 +199,15 @@ data/scenarios/<key>/ # 시나리오별 memories.json + results.json (데모 스
 
 ## 배포
 
-Alibaba Cloud 배포 가이드(컨테이너화)는 다음 커밋에서 추가한다.
+데모는 `Dockerfile`(단일 컨테이너 — 소스 + 사전계산 스냅샷 포함, API 키는 이미지에
+굽지 않고 실행 시 주입)을 제공한다. 단계별 Alibaba Cloud(ECS + Docker) 가이드는
+**[docs/DEPLOY.md](docs/DEPLOY.md)** 참고. 로컬 빠른 실행:
+
+```bash
+docker build -t mnemosure-demo .
+docker run -p 8000:8000 -e DASHSCOPE_API_KEY=발급받은_키 mnemosure-demo
+# → http://127.0.0.1:8000  (헬스체크: /health)
+```
 
 ## 라이선스
 

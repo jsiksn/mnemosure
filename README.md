@@ -199,7 +199,16 @@ data/scenarios/<key>/ # per-scenario memories.json + results.json (demo snapshot
 
 ## Deployment
 
-An Alibaba Cloud deployment guide (containerized) is being added in a follow-up commit.
+The demo ships with a `Dockerfile` (single container, source + precomputed
+snapshots; the API key is injected at run time, never baked in). See
+**[docs/DEPLOY.md](docs/DEPLOY.md)** for a step-by-step Alibaba Cloud (ECS +
+Docker) guide. Quick local run:
+
+```bash
+docker build -t mnemosure-demo .
+docker run -p 8000:8000 -e DASHSCOPE_API_KEY=your-key mnemosure-demo
+# → http://127.0.0.1:8000  (health: /health)
+```
 
 ## License
 
