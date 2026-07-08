@@ -227,7 +227,7 @@ data/scenarios/<key>/ # 시나리오별 memories.json + results.json (데모 스
 
 ## 배포
 
-데모에는 `Dockerfile`이 포함된다(단일 컨테이너, 소스+사전계산 스냅샷; API 키는 실행 시 주입, 절대 이미지에 굽지 않음). 단계별 클라우드 가이드는 **[docs/DEPLOY.md](docs/DEPLOY.md)** 참고. 로컬 빠른 실행:
+데모에는 `Dockerfile`이 포함된다(단일 컨테이너, 소스+사전계산 스냅샷; API 키는 실행 시 주입, 절대 이미지에 굽지 않음). 어떤 Docker 호스트에서든 돈다. 로컬 빠른 실행:
 
 ```bash
 docker build -t mnemosure-demo .
