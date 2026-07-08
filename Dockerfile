@@ -2,7 +2,7 @@
 #
 # 주의: pip 패키지(`pip install mnemosure`)는 코어-only(메모리+MCP)라 데모가 없다.
 # 그래서 이미지는 requirements.txt 기반으로 빌드하고 소스를 통째로 넣어 데모를 띄운다.
-# API 키는 이미지에 굽지 않는다 — 런타임에 -e DASHSCOPE_API_KEY=... 로 주입한다(.dockerignore가 .env 제외).
+# API 키는 이미지에 굽지 않는다 — 런타임에 -e OPENROUTER_API_KEY=... 로 주입한다(.dockerignore가 .env 제외).
 FROM python:3.12-slim
 
 WORKDIR /app

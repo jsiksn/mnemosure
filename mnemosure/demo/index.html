@@ -88,7 +88,7 @@
 <body>
 <header>
   <h1>Mnemosure</h1>
-  <p>모르면 모른다고, 아는 건 출처와 함께 — 근거 있는 메모리 레이어 (Qwen Cloud · Track 1)</p>
+  <p>모르면 모른다고, 아는 건 출처와 함께 — 근거 있는 메모리 레이어</p>
 </header>
 <div class="wrap">
 
@@ -96,6 +96,7 @@
 
   <section>
     <h2>1. 기억에게 물어보기 (라이브)</h2>
+    <div class="muted" style="font-size:12.5px;margin:-2px 0 8px">현재 설정된 모델(기본: OpenRouter 경유 qwen3.7-plus·bge-m3·rerank-4-fast)로 실시간 답합니다.</div>
     <div class="row">
       <input type="text" id="q" placeholder="예: 1차 필터가 괴리율 맞지?" onkeydown="if(event.key==='Enter')doAsk()">
       <button onclick="doAsk()">질문</button>
@@ -106,6 +107,7 @@
 
   <section>
     <h2>2. before / after — 기존 방식 대비</h2>
+    <div class="muted" style="font-size:12.5px;margin:-2px 0 8px">아래 곡선·비교표는 <b>Qwen Cloud(DashScope) 모델 조합</b>(brain qwen3.7 계열 · flash qwen3.5 계열 · text-embedding-v4 · qwen3-rerank)으로 측정해 둔 고정 스냅샷입니다. 우리/베이스라인 모두 같은 brain 모델로 답했습니다.</div>
     <div id="curve"></div>
     <div id="axes"></div>
   </section>
@@ -145,7 +147,7 @@ async function doAsk(){
   try {
     const r = await fetch('/ask', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question:q, scenario:SCEN})});
     const d = await r.json();
-    const conf = d.confidence || '모름';
+    const conf = confKo(d.confidence);
     box.innerHTML =
       '<span class="badge b-'+conf+'">확신도: '+conf+'</span>'
       + '<div style="margin-top:10px">'+escapeHtml(d.answer||'')+'</div>'
@@ -239,9 +241,17 @@ function cell(c){
   return '<td class="lbl lbl-'+key+'">'+escapeHtml(label||'-')+'</td>';
 }
 
+// 확신도 토큰 -> 한국어 표시 라벨. 0.3.0부터 엔진은 영어 토큰(certain/vague/unknown)을 쓰고,
+// 옛 스냅샷에는 한국어 토큰이 남아 있어 양쪽을 다 받는다.
+function confKo(v){
+  const map = {certain:'확실', vague:'어렴풋', unknown:'모름'};
+  return map[v] || v || '모름';
+}
+
 function ansBlock(name, c){
   c = c || {};
-  const badge = c.conf ? '<span class="badge b-'+c.conf+'">'+c.conf+'</span> ' : '';
+  const conf = c.conf ? confKo(c.conf) : '';
+  const badge = conf ? '<span class="badge b-'+conf+'">'+conf+'</span> ' : '';
   return '<div class="ansblock"><span class="ansname">'+name+'</span> '+badge
     + '<div class="anstext">'+escapeHtml(c.ans||'(답변 없음)')+'</div></div>';
 }

@@ -3,17 +3,19 @@
 
 질문을 받으면:
   1) 질문을 벡터로 바꿔 창고에서 의미가 가까운 기억 후보를 모은다 (대체된 옛 기억도 포함!).
-  2) qwen3-rerank로 후보를 질문 관련도 순으로 정밀 재정렬한다.
+  2) rerank 모델로 후보를 질문 관련도 순으로 정밀 재정렬한다.
+     (rerank를 끈 경우엔 1차 유사도(코사인) 점수를 그대로 순위·게이트에 쓴다)
   3) 상위 기억의 연합(대체/원인) 링크를 따라가 사슬을 펼친다 (연합 인출).
-  4) qwen3.7-plus(메인 두뇌)가 그 증거에만 근거해 확신도(확실/어렴풋/모름)와 함께 답한다.
+  4) 메인 두뇌가 그 증거에만 근거해 확신도(certain/vague/unknown)와 함께 답한다.
      - 옛 기억이 'superseded'면 사실로 단정하지 않고 새 것으로 바로잡는다(환각 차단).
      - 근거가 없으면 지어내지 않고 '기록에 없다'고 답한다.
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 
-from .. import config, qwen_client
+from .. import config, llm
 from .models import Memory
 from .storage import MemoryStore
 from .store import _cosine, _parse_json  # 같은 보조 함수 재사용(중복 방지)
@@ -21,41 +23,65 @@ from .store import _cosine, _parse_json  # 같은 보조 함수 재사용(중복
 
 CANDIDATE_K = 6        # 임베딩으로 1차로 모을 후보 수
 EVIDENCE_N = 4         # rerank 후 '씨앗 증거'로 쓸 상위 수
-RERANK_FLOOR = 0.15    # 최상위 관련도가 이보다 낮으면 근거 없음(모름)으로 본다
+# 정직 게이트: 최상위 관련도가 이보다 낮으면 근거 없음(unknown)으로 본다.
+# 기본값은 기본 모델(cohere/rerank-4-fast · bge-m3) 기준 보정값 — 다른 모델을 쓰면 env로 조정.
+RERANK_FLOOR = float(os.environ.get("MNEMOSURE_RERANK_FLOOR", "0.15"))   # rerank 점수용
+COSINE_FLOOR = float(os.environ.get("MNEMOSURE_COSINE_FLOOR", "0.35"))   # rerank off일 때 코사인 점수용
 
 
 @dataclass
 class RecallResult:
     """회상 한 번의 결과."""
     query: str
-    confidence: str                         # 확실 | 어렴풋 | 모름
+    confidence: str                         # certain | vague | unknown
     answer: str
     cited: list[str] = field(default_factory=list)
     tokens: int = 0                         # 답변 생성에 쓴 토큰 (토큰 효율 측정용)
     candidates: list[dict] = field(default_factory=list)  # 투명성/디버그용
 
 
-ANSWER_SYSTEM = """너는 출처에 근거하는 메모리 비서다. 아래 '기억 증거'에만 근거해 '질문과 같은 언어'로 답한다(질문이 한국어면 한국어, 영어면 영어).
-규칙:
-1) 증거에 없는 내용은 절대 지어내지 않는다.
-2) 어떤 기억이 status=superseded(대체됨)이고 그것을 대체한 새 기억이 증거에 있으면,
-   옛 정보를 현재 사실로 단정하지 말고 "그건 이전 방식이고 지금은 ~로 바뀌었다"고 바로잡는다.
-   가능하면 바뀐 이유(because로 연결된 원인)도 함께 말한다.
-3) 신뢰도를 셋 중 하나로 정한다:
-   - "확실": 증거가 질문에 명확히 답함
-   - "어렴풋": 관련은 있으나 불완전 -> 아는 부분과 모르는 부분을 나눠 솔직히
-   - "모름": 근거 없음 -> 지어내지 말고 "기록에 남아 있지 않다"고 답함
-4) 답변 끝에 근거 출처를 붙인다. 출처는 각 증거의 '출처='에 적힌 '제목/날짜'를 그대로 쓴다(mem_001·E1 같은 내부 코드는 쓰지 않는다).
-5) 질문이 물은 것에 초점을 맞춰 간결히 답한다. 답을 이해하는 데 직접 기여하는 맥락만 덧붙이고, 다른 줄기 정보는 나열하지 않는다.
-   단, 사용자가 '요약/정리/전체/지금까지의 결정'처럼 넓게 물으면, 증거에 있는 핵심 결정(core)을 빠짐없이 폭넓게 정리한다.
-6) 각 기억의 '원인메모(reason)'와 because 링크에 바뀐 이유가 있으면 반드시 활용한다.
-7) scope=tangential(운영·환경 등 곁다리) 기억은 질문이 그것을 '직접' 물을 때만 답에 쓴다. 일반·요약 질문에서는 언급하지 않는다.
-8) '왜 바꿨어' '어떻게 바뀌었어' '변천' 등 이유·역사를 물으면, 바뀐 결정과 그 원인(because/원인메모)을 함께 설명한다.
-   변경이 여러 단계였다면 핵심이 되는 변경과 그 이유를 우선 설명하고, 이유가 따로 없는 사소한 후속 보완(수치 구체화 등)에 집착하지 않는다.
+ANSWER_SYSTEM = """You are a source-grounded memory assistant. Answer ONLY from the [memory evidence] below, in the SAME LANGUAGE as the question (Korean question -> Korean answer, English question -> English answer).
+Rules:
+1) Never state anything that is not in the evidence.
+2) If a memory has status=superseded and the memory that replaced it is also in the evidence,
+   do NOT assert the old fact as current — correct it: "that was the old way; it has since changed to ~".
+   When possible, also give the reason for the change (the cause linked via `because`).
+3) Pick exactly one confidence level:
+   - "certain": the evidence clearly answers the question
+   - "vague": related but incomplete -> honestly separate what is known from what is not
+   - "unknown": no grounds -> do not invent; answer "this is not in the record"
+4) End the answer with its sources. Use the 'title/date' written in each evidence item's '출처=' field verbatim (never internal codes like mem_001 or E1).
+5) Focus on what was asked and answer concisely. Add only context that directly helps, without listing unrelated threads.
+   Exception: when the user asks broadly ("summary / overview / everything / decisions so far"), cover ALL core decisions in the evidence.
+6) When a memory's reason note or `because` link explains a change, make sure to use it.
+7) Use scope=tangential memories (ops/environment side notes) only when the question asks about them DIRECTLY. Never mention them in general or summary questions.
+8) For "why did it change" / "how did it change" / history questions, explain the changed decision together with its cause (because/reason note).
+   If there were multiple steps, lead with the pivotal change and its reason; do not dwell on minor follow-up refinements that have no reason of their own.
 
-confidence 값은 항상 한국어 토큰(확실/어렴풋/모름) 그대로 쓰고, answer 는 질문과 같은 언어로 쓴다.
-JSON으로만 답한다:
-{"confidence": "확실|어렴풋|모름", "answer": "질문과 같은 언어의 답변(출처 포함)", "cited": ["mem_002", ...]}"""
+The confidence value must always be exactly one of the English tokens (certain/vague/unknown); the answer text follows the question's language.
+Reply in JSON only:
+{"confidence": "certain|vague|unknown", "answer": "answer in the question's language (with sources)", "cited": ["mem_002", ...]}"""
+
+
+# 구버전(한국어 토큰) 호환: 모델이 옛 토큰으로 답해도 표준 토큰으로 정규화한다.
+_CONF_NORMALIZE = {"확실": "certain", "어렴풋": "vague", "모름": "unknown"}
+
+
+def _norm_conf(value: str, default: str = "vague") -> str:
+    v = (value or "").strip()
+    v = _CONF_NORMALIZE.get(v, v)
+    return v if v in ("certain", "vague", "unknown") else default
+
+
+def _has_hangul(text: str) -> bool:
+    return any("가" <= ch <= "힣" for ch in text)
+
+
+def _not_in_record(query: str) -> str:
+    """게이트가 닫혔을 때의 고정 답변 — 질문 언어에 맞춘다(정적 문자열이라 모델을 안 거친다)."""
+    if _has_hangul(query):
+        return "그 부분은 제 기억에 남아 있지 않습니다."
+    return "That is not in my records."
 
 
 # '전체를 훑는' 요약·정리형 질문 단서. 이런 질문은 상위 몇 개만 보면 핵심을 빠뜨린다.
@@ -69,7 +95,7 @@ def _is_overview(query: str) -> bool:
 def recall(query: str, store: MemoryStore, answer_model: str = config.MODEL_BRAIN) -> RecallResult:
     memories = [m for m in store.all() if m.embedding]
     if not memories:
-        return RecallResult(query, "모름", "기록에 남아 있는 기억이 없습니다.")
+        return RecallResult(query, "unknown", _not_in_record(query))
 
     if _is_overview(query):
         # 넓은 요약·정리 질문: 상위 K개가 아니라 '활성 기억 전체'를 근거로 준다(요약 누락 방지).
@@ -78,24 +104,29 @@ def recall(query: str, store: MemoryStore, answer_model: str = config.MODEL_BRAI
         cand_view = [{"id": m.id} for m in evidence]
     else:
         # 1) 임베딩 검색 — 대체된 기억도 포함해서 모은다(바로잡으려면 옛것을 찾아야 한다).
-        qvec = qwen_client.embed(query)[0]
+        qvec = llm.embed(query)[0]
         scored = sorted(
             ((_cosine(qvec, m.embedding), m) for m in memories),
             key=lambda x: x[0], reverse=True,
         )
         candidates = [m for _s, m in scored[:CANDIDATE_K]]
 
-        # 2) rerank — 후보를 질문 관련도 순으로 정밀 재정렬.
-        hits = qwen_client.rerank(query, [m.content for m in candidates])
-        ranked = sorted(
-            ((candidates[h.index], h.score) for h in hits),
-            key=lambda x: x[1], reverse=True,
-        )
+        # 2) 정밀 재정렬 — rerank 모델 사용(기본). 껐으면 코사인 점수를 그대로 쓴다.
+        if config.RERANK_ENABLED:
+            hits = llm.rerank(query, [m.content for m in candidates])
+            ranked = sorted(
+                ((candidates[h.index], h.score) for h in hits),
+                key=lambda x: x[1], reverse=True,
+            )
+            floor = RERANK_FLOOR
+        else:
+            ranked = [(m, s) for s, m in scored[:CANDIDATE_K]]
+            floor = COSINE_FLOOR
         cand_view = [{"id": m.id, "score": round(s, 3)} for m, s in ranked]
 
         # 가장 관련 있는 것조차 동떨어졌으면 -> 근거 없음(지어내지 않는다).
-        if not ranked or ranked[0][1] < RERANK_FLOOR:
-            return RecallResult(query, "모름", "그 부분은 제 기억에 남아 있지 않습니다.", candidates=cand_view)
+        if not ranked or ranked[0][1] < floor:
+            return RecallResult(query, "unknown", _not_in_record(query), candidates=cand_view)
 
         # 끌어오기는 넓게(곁다리 포함). 망각(분별)은 '말하기' 단계(답변 프롬프트)에서
         # 관련성으로 거른다 -> 직접 물으면 꺼내오고, 일반 질문엔 곁다리를 안 들먹인다. (결정 3)
@@ -113,7 +144,7 @@ def recall(query: str, store: MemoryStore, answer_model: str = config.MODEL_BRAI
 
     return RecallResult(
         query=query,
-        confidence=result.get("confidence", "어렴풋"),
+        confidence=_norm_conf(result.get("confidence", "vague")),
         answer=result.get("answer", ""),
         cited=result.get("cited", []),
         tokens=tokens,
@@ -125,11 +156,11 @@ def _answer(messages, model=config.MODEL_BRAIN):
     """두뇌 호출 -> (파싱된 결과, 사용 토큰). JSON 모드 실패 시 평범 모드로 재시도."""
     for kwargs in ({"response_format": {"type": "json_object"}, "temperature": 0}, {"temperature": 0}):
         try:
-            resp = qwen_client.chat(messages, model=model, **kwargs)
+            resp = llm.chat(messages, model=model, **kwargs)
             return _parse_json(resp.text), resp.usage.get("total_tokens", 0)
         except Exception:
             continue
-    return {"confidence": "어렴풋", "answer": "(응답을 해석하지 못했습니다)", "cited": []}, 0
+    return {"confidence": "vague", "answer": "(failed to parse the model response)", "cited": []}, 0
 
 
 def _expand(seeds: list[Memory], store: MemoryStore, max_hops: int = 2, cap: int = 8) -> list[Memory]:
