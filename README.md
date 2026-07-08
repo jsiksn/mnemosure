@@ -228,8 +228,8 @@ data/scenarios/<key>/ # per-scenario memories.json + results.json (demo snapshot
 ## Deployment
 
 The demo ships with a `Dockerfile` (single container, source + precomputed
-snapshots; the API key is injected at run time, never baked in). See
-**[docs/DEPLOY.md](docs/DEPLOY.md)** for a step-by-step cloud guide. Quick local run:
+snapshots; the API key is injected at run time, never baked in). It runs on any
+Docker host. Quick local run:
 
 ```bash
 docker build -t mnemosure-demo .

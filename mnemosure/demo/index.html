@@ -96,6 +96,7 @@
 
   <section>
     <h2>1. 기억에게 물어보기 (라이브)</h2>
+    <div class="muted" style="font-size:12.5px;margin:-2px 0 8px">현재 설정된 모델(기본: OpenRouter 경유 qwen3.7-plus·bge-m3·rerank-4-fast)로 실시간 답합니다.</div>
     <div class="row">
       <input type="text" id="q" placeholder="예: 1차 필터가 괴리율 맞지?" onkeydown="if(event.key==='Enter')doAsk()">
       <button onclick="doAsk()">질문</button>
@@ -106,6 +107,7 @@
 
   <section>
     <h2>2. before / after — 기존 방식 대비</h2>
+    <div class="muted" style="font-size:12.5px;margin:-2px 0 8px">아래 곡선·비교표는 <b>Qwen Cloud(DashScope) 모델 조합</b>(brain qwen3.7 계열 · flash qwen3.5 계열 · text-embedding-v4 · qwen3-rerank)으로 측정해 둔 고정 스냅샷입니다. 우리/베이스라인 모두 같은 brain 모델로 답했습니다.</div>
     <div id="curve"></div>
     <div id="axes"></div>
   </section>
