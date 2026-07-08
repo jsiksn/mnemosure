@@ -1,11 +1,8 @@
 """
 1단계 생존 확인 스크립트.
 
-Qwen 4개 모델이 모두 정상 호출되는지 각각 '최소 호출'로 확인한다.
-  - qwen3.7-plus  (LLM 메인)
-  - qwen3.5-flash (LLM 보조)   ← 이번 단계에서 처음 실증
-  - text-embedding-v4 (임베딩)
-  - qwen3-rerank  (재순위, 네이티브 엔드포인트)
+설정된 4개 모델 역할(brain/flash/embed/rerank)이 모두 정상 호출되는지
+각각 '최소 호출'로 확인한다. 모델·게이트웨이는 config(.env)를 따른다.
 
 각 항목: [PASS]/[FAIL] 표시 + 토큰 사용량.
 실패 시: 에러 전문을 그대로 출력(결제수단/권한 오류도 숨기지 않음).
@@ -76,14 +73,14 @@ def check_rerank():
 
 def main():
     print("=" * 64)
-    print("Mnemosure — Qwen 4개 모델 생존 확인")
+    print("Mnemosure — 4개 모델 역할 생존 확인 (base:", config.BASE_URL + ")")
     print("=" * 64)
 
     checks = [
-        ("LLM 메인  (qwen3.7-plus)", check_chat_plus),
-        ("LLM 보조  (qwen3.5-flash)", check_chat_flash),
-        ("Embedding (text-embedding-v4)", check_embed),
-        ("Rerank    (qwen3-rerank)", check_rerank),
+        (f"LLM 메인  ({config.MODEL_BRAIN})", check_chat_plus),
+        (f"LLM 보조  ({config.MODEL_FLASH})", check_chat_flash),
+        (f"Embedding ({config.MODEL_EMBED})", check_embed),
+        (f"Rerank    ({config.MODEL_RERANK})", check_rerank),
     ]
     results = [(title, _run(title, fn)) for title, fn in checks]
 
