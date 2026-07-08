@@ -15,7 +15,7 @@ recall.
 ## What you need
 
 - An **Alibaba Cloud account** (the free tier is enough for a small ECS instance).
-- A **Qwen / DashScope API key** (`DASHSCOPE_API_KEY`). The demo calls Qwen only
+- An **OpenRouter API key** (`OPENROUTER_API_KEY`). The demo calls models only
   for the live `/ask`; everything else renders from committed snapshots, so the
   page loads even without a key.
 
@@ -66,12 +66,12 @@ baked in.
 ```bash
 sudo docker run -d --name mnemosure-demo \
   -p 8000:8000 \
-  -e DASHSCOPE_API_KEY="your-dashscope-api-key" \
+  -e OPENROUTER_API_KEY="sk-or-your-key" \
   --restart unless-stopped \
   mnemosure-demo
 ```
 
-- `-e DASHSCOPE_API_KEY=...` injects the key at run time (never in the image).
+- `-e OPENROUTER_API_KEY=...` injects the key at run time (never in the image).
 - `--restart unless-stopped` brings the demo back after a reboot.
 
 **If a default model's quota is exhausted**, override it per run without touching
@@ -79,13 +79,13 @@ code (see `mnemosure/config.py` for the defaults) — the live `/ask` uses the
 embedding, rerank, and *brain* models (not the flash model):
 
 ```bash
-  -e MNEMOSURE_MODEL_BRAIN="<another-qwen-model>" \
+  -e MNEMOSURE_MODEL_BRAIN="<another-model-id>" \
 ```
 
 ## 5. Verify
 
 ```bash
-# health check (no Qwen call)
+# health check (no model call)
 curl http://<PUBLIC_IP>:8000/health
 # -> {"status":"ok","scenarios":["nxtbot","pricing"]}
 ```
@@ -107,6 +107,6 @@ running.
 - **Logs:** `sudo docker logs -f mnemosure-demo`
 - **Update to the latest code:** `git pull && sudo docker build -t mnemosure-demo . && sudo docker rm -f mnemosure-demo` then re-run step 4.
 - **Stop / remove:** `sudo docker rm -f mnemosure-demo`
-- **Security:** a public demo means anyone can hit `/ask` and spend your Qwen
+- **Security:** a public demo means anyone can hit `/ask` and spend your API
   quota. After judging, stop the instance (or rotate the key). The key lives only
   in the container's environment, never in the image or in git.
