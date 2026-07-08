@@ -21,7 +21,7 @@ from typing import Any
 
 import numpy as np
 
-from .. import config, qwen_client
+from .. import config, llm
 from .models import Association, Memory, Source
 from .storage import MemoryStore
 
@@ -35,14 +35,22 @@ SUPERSEDE_THRESHOLD = 0.35
 CAUSE_THRESHOLD = 0.15
 
 
+def embed_text_for(content: str, triggers: list[str]) -> str:
+    """임베딩에 넣을 텍스트 조합(핵심 + 인출 단서). 재임베딩 CLI도 같은 조합을 써야
+    저장 때와 동일한 벡터가 나온다 — 반드시 이 함수를 공유한다."""
+    return content + " / " + " ".join(triggers)
+
+
 # --- 1) 추출: 세션 글에서 핵심만 골라 JSON으로 받기 -------------------------
 EXTRACT_SYSTEM = """너는 개발 세션 기록에서 '나중에 다시 중요해질' 것만 골라내는 메모리 추출기다.
 다음만 추출한다: 결정(decision), 변경(change), 실패·폐기(failure), 확정된 사실(fact).
 잡담·일회성 질문·단순 진행상황은 버린다. 단, '시도했다가 안 됐다'는 실패도 반드시 남긴다.
 
+content 는 '세션 원문과 같은 언어'의 간결한 한 문장으로 쓴다(한국어 세션이면 한국어, 영어 세션이면 영어).
+
 아래 JSON 형식으로만 출력한다(다른 설명 문장 금지):
 {"memories": [
-  {"content": "핵심을 담은 간결한 한국어 한 문장",
+  {"content": "핵심을 담은, 세션과 같은 언어의 간결한 한 문장",
    "kind": "decision|change|failure|fact",
    "triggers": ["떠올릴 단서 키워드", "..."],
    "reason": "왜 그렇게 했는지(없으면 빈 문자열)"}
@@ -103,8 +111,7 @@ def ingest_session(
         triggers = [t for t in item.get("triggers", []) if t]
 
         # 임베딩 재료 = 핵심 + 단서. (단서가 나중 검색을 도와준다)
-        embed_text = content + " / " + " ".join(triggers)
-        vector = qwen_client.embed(embed_text)[0]
+        vector = llm.embed(embed_text_for(content, triggers))[0]
 
         mem = Memory(
             id=store.next_id(),
@@ -194,9 +201,9 @@ def _chat_json(messages, model: str) -> dict[str, Any]:
     """모델에 물어 JSON 응답을 받아 파싱한다. JSON 모드를 시도하고, 안 되면 평범하게 재시도.
     temperature=0 으로 고정 — 추출·대체판정·망각분류·채점이 재현 가능하도록(라벨 흔들림 방지)."""
     try:
-        resp = qwen_client.chat(messages, model=model, response_format={"type": "json_object"}, temperature=0)
+        resp = llm.chat(messages, model=model, response_format={"type": "json_object"}, temperature=0)
     except Exception:
-        resp = qwen_client.chat(messages, model=model, temperature=0)
+        resp = llm.chat(messages, model=model, temperature=0)
     return _parse_json(resp.text)
 
 
