@@ -11,7 +11,7 @@ requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "jsson" }]
-keywords = ["memory", "mcp", "llm", "agent", "rag", "qwen", "grounding", "hallucination", "citation"]
+keywords = ["memory", "mcp", "llm", "agent", "rag", "openrouter", "grounding", "hallucination", "citation"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -30,6 +30,11 @@ dependencies = [
     "mcp>=1.2",
 ]
 
+[project.optional-dependencies]
+# 로컬 임베딩(fastembed, ONNX): API 키·비용 없이 임베딩만 내 컴퓨터에서 계산.
+# 모델 가중치는 첫 사용 때 Hugging Face에서 내려받아 캐시된다(패키지에 미포함).
+local = ["fastembed>=0.5"]
+
 [project.scripts]
 mnemosure-mcp = "mnemosure.mcp_server:main"
 
@@ -44,7 +49,7 @@ path = "mnemosure/__init__.py"
 [tool.hatch.build.targets.wheel]
 packages = ["mnemosure"]
 # 데모(demo/)·평가(evaluation/)는 제품이 아니라 데모/개발용(데이터도 미포함) → pip 패키지에서 제외.
-# 코어(config·qwen_client·mcp_server·memory)만 배포. 데모/평가는 GitHub 레포에서 사용.
+# 코어(config·llm·mcp_server·reembed·memory)만 배포. 데모/평가는 GitHub 레포에서 사용.
 exclude = ["mnemosure/demo", "mnemosure/evaluation"]
 
 [tool.hatch.build.targets.sdist]

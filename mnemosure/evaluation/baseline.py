@@ -9,7 +9,7 @@
 """
 from __future__ import annotations
 
-from .. import config, qwen_client
+from .. import config, llm
 from ..memory.store import _cosine
 
 HANDOFF_BUDGET = 300  # 핸드오프 노트 최대 길이(자). 작을수록 오래된 게 빨리 사라진다.
@@ -34,7 +34,7 @@ class HandoffBaseline:
     def ingest(self, session_text: str) -> None:
         """새 세션을 노트에 합치고, 예산 안에서 다시 요약한다(최근 우선)."""
         user = f"[이전 노트]\n{self.note or '(없음)'}\n\n[새 세션]\n{session_text}"
-        r = qwen_client.chat(
+        r = llm.chat(
             [{"role": "system", "content": SUMMARIZE_SYS},
              {"role": "user", "content": user}],
             model=config.MODEL_FLASH, temperature=0,
@@ -45,7 +45,7 @@ class HandoffBaseline:
     def answer(self, question: str, model: str = config.MODEL_BRAIN) -> dict:
         """핸드오프 노트만 근거로 답한다. (출처·확신도·대체관계 개념 없음)"""
         user = f"[핸드오프 노트]\n{self.note}\n\n[질문]\n{question}"
-        r = qwen_client.chat(
+        r = llm.chat(
             [{"role": "system", "content": ANSWER_SYS},
              {"role": "user", "content": user}],
             model=model, temperature=0,
@@ -73,15 +73,15 @@ class NaiveRagBaseline:
         for line in session_text.split("\n"):
             line = line.strip()
             if line:
-                self.chunks.append((line, qwen_client.embed(line)[0]))
+                self.chunks.append((line, llm.embed(line)[0]))
 
     def answer(self, question: str, model: str = config.MODEL_BRAIN) -> dict:
         if not self.chunks:
             return {"answer": "기록 없음", "confidence": "-", "tokens": 0}
-        qv = qwen_client.embed(question)[0]
+        qv = llm.embed(question)[0]
         top = sorted(self.chunks, key=lambda c: _cosine(qv, c[1]), reverse=True)[: self.k]
         ctx = "\n".join(f"- {t}" for t, _ in top)
-        r = qwen_client.chat(
+        r = llm.chat(
             [{"role": "system", "content": RAG_SYS},
              {"role": "user", "content": f"[검색된 과거 기록]\n{ctx}\n\n[질문]\n{question}"}],
             model=model, temperature=0,

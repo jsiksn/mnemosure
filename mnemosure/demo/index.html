@@ -145,7 +145,7 @@ async function doAsk(){
   try {
     const r = await fetch('/ask', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question:q, scenario:SCEN})});
     const d = await r.json();
-    const conf = d.confidence || '모름';
+    const conf = confKo(d.confidence);
     box.innerHTML =
       '<span class="badge b-'+conf+'">확신도: '+conf+'</span>'
       + '<div style="margin-top:10px">'+escapeHtml(d.answer||'')+'</div>'
@@ -239,9 +239,17 @@ function cell(c){
   return '<td class="lbl lbl-'+key+'">'+escapeHtml(label||'-')+'</td>';
 }
 
+// 확신도 토큰 -> 한국어 표시 라벨. 0.3.0부터 엔진은 영어 토큰(certain/vague/unknown)을 쓰고,
+// 옛 스냅샷에는 한국어 토큰이 남아 있어 양쪽을 다 받는다.
+function confKo(v){
+  const map = {certain:'확실', vague:'어렴풋', unknown:'모름'};
+  return map[v] || v || '모름';
+}
+
 function ansBlock(name, c){
   c = c || {};
-  const badge = c.conf ? '<span class="badge b-'+c.conf+'">'+c.conf+'</span> ' : '';
+  const conf = c.conf ? confKo(c.conf) : '';
+  const badge = conf ? '<span class="badge b-'+conf+'">'+conf+'</span> ' : '';
   return '<div class="ansblock"><span class="ansname">'+name+'</span> '+badge
     + '<div class="anstext">'+escapeHtml(c.ans||'(답변 없음)')+'</div></div>';
 }
