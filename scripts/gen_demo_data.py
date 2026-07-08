@@ -20,7 +20,7 @@ from concurrent.futures import ThreadPoolExecutor
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from mnemosure import qwen_client  # noqa: E402
+from mnemosure import llm  # noqa: E402
 from mnemosure.demo import scenarios  # noqa: E402
 from mnemosure.evaluation.baseline import HandoffBaseline, NaiveRagBaseline  # noqa: E402
 from mnemosure.evaluation.judge import judge  # noqa: E402
@@ -37,7 +37,7 @@ HANDOFF_BUDGET_CURVE = 800
 
 
 def usage_line(tag):
-    u = qwen_client.get_usage()
+    u = llm.get_usage()
     parts = ", ".join(f"{m}={t/1000:.0f}K" for m, t in sorted(u.items()))
     print(f"   [tokens @ {tag}] {parts}")
 
@@ -246,7 +246,7 @@ def build_scenario(sc):
 
 def main(only=None):
     """모든 시나리오를 계산(미계산분만). only(키 목록)를 주면 그 시나리오만."""
-    qwen_client.reset_usage()
+    llm.reset_usage()
     for sc in scenarios.all_scenarios():
         if only and sc["key"] not in only:
             print(f"[{sc['key']}] --only 지정으로 건너뜀")
