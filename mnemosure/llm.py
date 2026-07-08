@@ -104,6 +104,10 @@ def chat(messages, model: str = config.MODEL_BRAIN, **opts) -> ChatResult:
     if isinstance(messages, str):
         messages = [{"role": "user", "content": messages}]
 
+    # 출력 상한 기본값: 추출·답변엔 충분하고, 미지정 시 모델 최대치(수만 토큰)로 잡혀
+    # 무료/저잔액 계정에서 402가 나거나 비용이 폭주하는 것을 막는다. 호출부에서 덮어쓸 수 있다.
+    opts.setdefault("max_tokens", 4096)
+
     resp = _get_client().chat.completions.create(
         model=model, messages=messages, **opts
     )
