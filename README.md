@@ -10,6 +10,10 @@ Its core claim: **it does not invent what it cannot remember, and it does not dr
 
 One API key ([OpenRouter](https://openrouter.ai)) drives the whole pipeline — pick any chat, embedding, and rerank model you like (Claude, GPT, Qwen, …), or compute embeddings locally with no key at all.
 
+![Mnemosure demo — live recall and the before/after evaluation panel](https://raw.githubusercontent.com/jsiksn/mnemosure/main/docs/demo.png)
+
+*Demo UI (Korean). In the recall curve, Mnemosure (blue) keeps answering early questions correctly as sessions pile up, while summary-handoff (red) decays to zero. The table labels each system's actual answer per question — green = accurate, red = hallucination, gray = omission.*
+
 ---
 
 ## What it does
@@ -198,6 +202,18 @@ Tools:
 ## Evaluation approach
 
 Quality is measured by labeling each answer's **behavior** — accurate / omission / hallucination / noise / honest — alongside our three-way **confidence** (certain / vague / unknown), rather than a single opaque score. The whole pipeline (extraction, supersession judgment, scoring) runs at **temperature 0** for reproducibility. The demo serves a fixed snapshot so results are stable across viewings.
+
+On the two built-in scenarios (19 questions total — trading bot 8, subscription pricing 11), the snapshot labels out as:
+
+| Behavior | Mnemosure | Summary handoff | Plain RAG |
+|---|---|---|---|
+| accurate | **17** | 4 | 4 |
+| honest ("not in the record") | **2** | 2 | 2 |
+| omission (forgot it) | 0 | 11 | 7 |
+| hallucination (made it up) | 0 | 1 | 6 |
+| noise (didn't answer the question) | 0 | 1 | 0 |
+
+Read this as a demo, not a benchmark: the scenarios and answer keys are our own (fictional, in Korean), behaviors are labeled by an LLM judge, and the snapshot was measured on a Qwen Cloud model mix (stated in the demo UI). All three systems answered with the same brain model — only the memory in front of it differs.
 
 See `mnemosure/evaluation/` (`harness.py`, `judge.py`, `label.py`, `baseline.py`, `answer_key.py`).
 

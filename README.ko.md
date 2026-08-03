@@ -10,6 +10,10 @@
 
 API 키 하나([OpenRouter](https://openrouter.ai))로 파이프라인 전체가 돈다 — chat·임베딩·rerank 모델을 원하는 대로 고르고(Claude, GPT, Qwen, …), 임베딩은 키 없이 로컬로 돌릴 수도 있다.
 
+![Mnemosure 데모 — 라이브 회상과 before/after 평가 패널](https://raw.githubusercontent.com/jsiksn/mnemosure/main/docs/demo.png)
+
+*데모 UI. 회상 곡선에서 Mnemosure(파랑)는 세션이 쌓여도 초기 질문에 계속 정답을 유지하고, 요약 핸드오프(빨강)는 0으로 무너진다. 아래 표는 질문별로 각 시스템의 실제 답변 행동을 라벨로 보여준다 — 초록=정확, 빨강=환각, 회색=누락.*
+
 ---
 
 ## 무엇을 하나
@@ -198,6 +202,18 @@ claude mcp add mnemosure --env OPENROUTER_API_KEY=sk-or-... -- mnemosure-mcp
 ## 평가 방식
 
 품질은 단일 점수가 아니라 답변별 **행동** 라벨 — 정확 / 누락 / 환각 / 잡음 / 정직 — 과 3단 **확신도**(certain/vague/unknown)로 측정한다. 파이프라인 전체(추출·대체 판정·채점)는 재현성을 위해 **temperature 0**으로 돈다. 데모는 고정 스냅샷을 서빙하므로 볼 때마다 결과가 같다.
+
+내장 시나리오 2종(총 19문항 — 자동매매 봇 8, 구독 요금제 11) 기준, 스냅샷의 라벨 집계는 다음과 같다:
+
+| 행동 | Mnemosure | 요약 핸드오프 | 단순 RAG |
+|---|---|---|---|
+| 정확 | **17** | 4 | 4 |
+| 정직("기록에 없다") | **2** | 2 | 2 |
+| 누락(잊음) | 0 | 11 | 7 |
+| 환각(지어냄) | 0 | 1 | 6 |
+| 잡음(동문서답) | 0 | 1 | 0 |
+
+이 수치는 벤치마크가 아니라 데모로 읽어야 한다: 시나리오와 정답 키는 자체 제작(가상)이고, 행동 라벨은 LLM 저지가 판정했으며, 스냅샷은 Qwen Cloud 모델 조합으로 측정했다(데모 UI에 명시). 세 시스템 모두 같은 brain 모델로 답했다 — 다른 것은 그 앞에 놓인 기억뿐이다.
 
 `mnemosure/evaluation/` 참고 (`harness.py`, `judge.py`, `label.py`, `baseline.py`, `answer_key.py`).
 
