@@ -125,7 +125,7 @@ MNEMOSURE_MODEL_BRAIN=<올려 둔 모델>
 MNEMOSURE_MODEL_FLASH=<올려 둔 모델>
 ```
 
-**3. 전부 게이트웨이로** — GPU가 없어 첫 색인이 느릴 때. 0.3.0까지의 기본과 같은 상태가 된다.
+**3. 전부 게이트웨이로** — GPU가 없어 첫 색인이 느릴 때. 0.4.0 이전의 기본과 같은 상태가 된다.
 
 ```bash
 MNEMOSURE_EMBED_PROVIDER=api
