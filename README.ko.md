@@ -74,6 +74,15 @@ flowchart TB
 
 - `MNEMOSURE_RERANK=off` — 재순위 호출을 생략. 순위·정직 게이트는 1차 코사인 점수를 쓴다. 저렴하지만 정밀도는 다소 낮다.
 - `MNEMOSURE_BASE_URL` — OpenRouter 대신 다른 OpenAI 호환 게이트웨이 사용(이때 키는 `MNEMOSURE_API_KEY`).
+- `MNEMOSURE_EMBED_BASE_URL` — **임베딩만** 다른 곳으로 보낸다(키는 `MNEMOSURE_EMBED_API_KEY`, 안 적으면 본 키). 안 적으면 `MNEMOSURE_BASE_URL`과 같은 곳을 쓴다. 로컬 GPU에 임베딩 모델을 올려 둔 경우가 대표적인 용도다 — 양이 많은 색인만 자기 장비로 돌리고 나머지 호출은 그대로 둔다.
+
+  ```bash
+  MNEMOSURE_EMBED_BASE_URL=http://<GPU호스트>:11434/v1   # 예: Ollama의 OpenAI 호환 경로
+  MNEMOSURE_EMBED_API_KEY=ollama                        # 키를 안 보는 서버라도 SDK가 값을 요구한다
+  MNEMOSURE_MODEL_EMBED=<그 서버에 올려 둔 임베딩 모델>
+  ```
+
+  **재순위는 이 방법으로 옮길 수 없다.** OpenAI 호환 규격에 재순위 라우트가 없어 같은 호스트의 `/rerank`를 직접 부르는데(Cohere 관례 형식), 일반 로컬 추론 서버는 그 경로를 내지 않는다. `MNEMOSURE_BASE_URL`을 그런 서버로 바꾸면 재순위가 깨지므로, 임베딩만 옮기고 재순위는 게이트웨이에 남기는 편이 안전하다. 재순위는 회수 후보 몇 개에만 도는 호출이라 비용이 작다.
 
 정직 게이트 임계값(`MNEMOSURE_RERANK_FLOOR`, `MNEMOSURE_COSINE_FLOOR`)의 기본값은 위 기본 모델 기준 보정값이다 — 재순위·임베딩 모델을 바꾸면 자기 데이터로 재확인을 권한다.
 

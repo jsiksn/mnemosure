@@ -74,6 +74,15 @@ Point any of them at any OpenRouter model id (`anthropic/claude-sonnet-5`, `open
 
 - `MNEMOSURE_RERANK=off` — skip the rerank call entirely; ranking and the honesty gate then use the first-pass cosine scores. Cheaper, slightly less precise.
 - `MNEMOSURE_BASE_URL` — use a different OpenAI-compatible gateway instead of OpenRouter (then set `MNEMOSURE_API_KEY`).
+- `MNEMOSURE_EMBED_BASE_URL` — route **embeddings only** somewhere else (key: `MNEMOSURE_EMBED_API_KEY`, falling back to the main key). Unset, it follows `MNEMOSURE_BASE_URL`. The typical use is an embedding model on your own GPU — the bulk indexing runs on your hardware while every other call stays where it was.
+
+  ```bash
+  MNEMOSURE_EMBED_BASE_URL=http://<gpu-host>:11434/v1   # e.g. Ollama's OpenAI-compatible path
+  MNEMOSURE_EMBED_API_KEY=ollama                        # servers that ignore the key still need the SDK to send one
+  MNEMOSURE_MODEL_EMBED=<the embedding model you serve there>
+  ```
+
+  **Rerank cannot be moved this way.** The OpenAI-compatible spec has no rerank route, so mnemosure calls `/rerank` on the same host directly (Cohere-style), and a general local inference server does not expose it. Pointing `MNEMOSURE_BASE_URL` at such a server breaks rerank — move embeddings only and leave rerank on the gateway. Rerank runs over a handful of retrieved candidates, so its cost is small.
 
 The honesty-gate thresholds (`MNEMOSURE_RERANK_FLOOR`, `MNEMOSURE_COSINE_FLOOR`) default to values calibrated for the default models above — if you swap the rerank or embedding model, re-check them on your own data.
 
