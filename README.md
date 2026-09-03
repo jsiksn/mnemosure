@@ -59,34 +59,107 @@ flowchart TB
 
 **Recall** (`mnemosure/memory/recall.py`): the query is embedded and the top candidates are pulled — *including superseded ones*, because correcting a stale belief requires finding it first. The rerank model re-orders by relevance; if even the best hit is too weak, the answer is **unknown** rather than a guess. The surviving seeds are expanded two hops along their `supersedes`/`because` links, and the brain model composes the final answer **grounded only in that evidence** (temperature 0). Broad "summarize everything" questions bypass top-K and ground on all active memories so nothing is dropped.
 
-## Models (via OpenRouter — swap freely)
+## Models — four roles, the heavy ones run on your machine
 
-All model calls go through one OpenAI-compatible gateway (default: OpenRouter). Defaults:
+| Role | Default model | Runs where | Key |
+|---|---|---|---|
+| Index (embedding, 1024-dim) | `intfloat/multilingual-e5-large` | **your machine** | not needed |
+| Precision rerank | `jinaai/jina-reranker-v2-base-multilingual` | **your machine** | not needed |
+| Brain (answer generation) | `qwen/qwen3.7-plus` | OpenRouter | needed |
+| Flash (extraction, link judgement) | `qwen/qwen3.5-flash-02-23` | OpenRouter | needed |
 
-| Role | Default model | Override env |
+**Your raw conversations never leave the machine.** Turning memories into vectors and
+searching them happens locally; the only outbound call is the one that composes an answer
+to a question. The high-volume side is local, so actual spend is near zero.
+
+On first use about 3.4GB of weights (2.24 embedding + 1.11 rerank) is fetched once from
+Hugging Face and cached — after that it runs offline. Without a GPU the first index is
+slow (see "everything through the gateway" below).
+
+### Choosing where each role runs
+
+| What | env | Default | Other value |
+|---|---|---|---|
+| Where embedding runs | `MNEMOSURE_EMBED_PROVIDER` | `local` | `api` → gateway |
+| Where rerank runs | `MNEMOSURE_RERANK_PROVIDER` | `local` | `api` → gateway |
+| Gateway URL | `MNEMOSURE_BASE_URL` | OpenRouter | any OpenAI-compatible server |
+| Gateway key | `MNEMOSURE_API_KEY` | — | (`OPENROUTER_API_KEY` also read) |
+
+Model names are per-role, and `local` / `api` read **different variables**:
+
+| Role | when `local` | when `api` |
 |---|---|---|
-| Brain (main answer) | `qwen/qwen3.7-plus` | `MNEMOSURE_MODEL_BRAIN` |
-| Flash (extract / link verdicts) | `qwen/qwen3.5-flash-02-23` | `MNEMOSURE_MODEL_FLASH` |
-| Index (embeddings, 1024-dim) | `baai/bge-m3` | `MNEMOSURE_MODEL_EMBED` |
-| Precision rerank | `cohere/rerank-4-fast` | `MNEMOSURE_MODEL_RERANK` |
+| Embedding | `MNEMOSURE_MODEL_EMBED_LOCAL` | `MNEMOSURE_MODEL_EMBED` |
+| Rerank | `MNEMOSURE_MODEL_RERANK_LOCAL` | `MNEMOSURE_MODEL_RERANK` |
+| Brain | — | `MNEMOSURE_MODEL_BRAIN` |
+| Flash | — | `MNEMOSURE_MODEL_FLASH` |
 
-Point any of them at any OpenRouter model id (`anthropic/claude-sonnet-5`, `openai/gpt-…`, …). Two more switches:
+### Three setups
 
-- `MNEMOSURE_RERANK=off` — skip the rerank call entirely; ranking and the honesty gate then use the first-pass cosine scores. Cheaper, slightly less precise.
-- `MNEMOSURE_BASE_URL` — use a different OpenAI-compatible gateway instead of OpenRouter (then set `MNEMOSURE_API_KEY`).
-- `MNEMOSURE_EMBED_BASE_URL` — route **embeddings only** somewhere else (key: `MNEMOSURE_EMBED_API_KEY`, falling back to the main key). Unset, it follows `MNEMOSURE_BASE_URL`. The typical use is an embedding model on your own GPU — the bulk indexing runs on your hardware while every other call stays where it was.
+**1. As shipped** — one key and you are done. Index local, answers via gateway.
 
-  ```bash
-  MNEMOSURE_EMBED_BASE_URL=http://<gpu-host>:11434/v1   # e.g. Ollama's OpenAI-compatible path
-  MNEMOSURE_EMBED_API_KEY=ollama                        # servers that ignore the key still need the SDK to send one
-  MNEMOSURE_MODEL_EMBED=<the embedding model you serve there>
-  ```
+```bash
+OPENROUTER_API_KEY=sk-or-...
+```
 
-  **Rerank cannot be moved this way.** The OpenAI-compatible spec has no rerank route, so mnemosure calls `/rerank` on the same host directly (Cohere-style), and a general local inference server does not expose it. Pointing `MNEMOSURE_BASE_URL` at such a server breaks rerank — move embeddings only and leave rerank on the gateway. Rerank runs over a handful of retrieved candidates, so its cost is small.
+**2. Entirely on your own hardware (no key)** — point at an OpenAI-compatible server
+(Ollama, vLLM, …) holding a chat model. Embedding and rerank are already local, so
+**outbound calls drop to zero.**
 
-The honesty-gate thresholds (`MNEMOSURE_RERANK_FLOOR`, `MNEMOSURE_COSINE_FLOOR`) default to values calibrated for the default models above — if you swap the rerank or embedding model, re-check them on your own data.
+```bash
+MNEMOSURE_BASE_URL=http://<your-gpu-host>:11434/v1
+MNEMOSURE_API_KEY=ollama          # the SDK wants a value even if the server ignores it
+MNEMOSURE_MODEL_BRAIN=<model you loaded>
+MNEMOSURE_MODEL_FLASH=<model you loaded>
+```
 
-The API key is read **only** from the environment (or `.env`) and is never hard-coded. Defaults live in `mnemosure/config.py` (the single source of truth).
+**3. Everything through the gateway** — when you have no GPU and the first index is slow.
+This reproduces the pre-0.4.0 default.
+
+```bash
+MNEMOSURE_EMBED_PROVIDER=api
+MNEMOSURE_RERANK_PROVIDER=api
+OPENROUTER_API_KEY=sk-or-...
+```
+
+> **Changing the embedding provider means re-embedding the warehouse once**, because the
+> `local` and `api` defaults are different models producing different vectors. Running it
+> prints the instructions; `python -m mnemosure.reembed` does the move — see
+> "Switching embedding models" below.
+
+### Two things to know
+
+**If rerank is `api` and you only repoint `BASE_URL` at a local server, rerank breaks.**
+The OpenAI-compatible spec has no rerank route, so mnemosure calls `/rerank` on the same
+host directly (Cohere convention), and ordinary local inference servers do not serve it.
+When moving `BASE_URL`, leave rerank on `local` (the default). To skip rerank entirely use
+`MNEMOSURE_RERANK=off` — ranking and the honesty gate then use the first-pass cosine score.
+
+**Honesty-gate floors are model-specific.** The defaults for `MNEMOSURE_RERANK_FLOOR`
+(rerank scores) and `MNEMOSURE_COSINE_FLOOR` (rerank off) are calibrated for the
+corresponding default models. If you change models, re-check on your own data: too high a
+floor answers "not in the record" for memories you actually have; too low a floor answers
+from irrelevant evidence.
+
+### Retrieval candidate count
+
+`MNEMOSURE_CANDIDATE_K` (default 40) is how many candidates the first pass keeps.
+**Anything cut here is invisible to both rerank and the honesty gate** — set it too narrow
+and, as the warehouse grows, more answers become "I have it but cannot find it", which
+then leaves as "not in the record" and is indistinguishable from honest ignorance.
+Measured on 7,340 chunks of research notes (share of questions whose answer was retrieved):
+
+| Warehouse size | 6 candidates | 40 candidates | 100 candidates |
+|---|---|---|---|
+| 19 chunks | 95.8% | 100.0% | 100.0% |
+| 1,000 chunks | 75.7% | 86.1% | 93.2% |
+| 7,340 chunks | 60.2% | 75.7% | 82.5% |
+
+The bigger the warehouse, the more a wider candidate set is worth. Raise it past tens of
+thousands of memories; lower it if you want faster responses on a very small warehouse.
+
+API keys are read **only** from the environment (or `.env`) and never hardcoded.
+Defaults live in `mnemosure/config.py` (single source of truth).
 
 ## Install
 
@@ -104,14 +177,23 @@ mnemosure-mcp                  # stdio MCP server
 - **Where memories are stored:** an installed copy starts with an *empty* warehouse at `~/.mnemosure/memories.json`. Override the directory with `MNEMOSURE_DATA_DIR`.
 - The pip package ships **only the product** (`config`, `llm`, `mcp_server`, `reembed`, `memory/`). The web demo and evaluation harness live in this repository (clone it to run them).
 
-### Local embeddings (no key for the index)
+### Local models (default · nothing extra to install)
 
-```bash
-pip install "mnemosure[local]"
-export MNEMOSURE_EMBED_PROVIDER=local
+Embedding and rerank are computed on your machine with
+[fastembed](https://github.com/qdrant/fastembed). It is a base dependency, so
+`pip install mnemosure` is all it takes.
+
+```
+embedding  intfloat/multilingual-e5-large              2.24GB · 1024-dim
+rerank     jinaai/jina-reranker-v2-base-multilingual   1.11GB · multilingual
 ```
 
-Embeddings are then computed on your machine with [fastembed](https://github.com/qdrant/fastembed) (default model: `intfloat/multilingual-e5-large`, 1024-dim). The model weights are **not** bundled — they are downloaded once from Hugging Face on first use and cached (works offline afterwards; on a restricted network, pre-place the model in the fastembed cache dir). Chat and rerank still use the API key.
+Weights are **not bundled** — they are fetched once from Hugging Face on first use and
+cached, after which it runs without network (on an air-gapped host, place them in the
+fastembed cache directory manually).
+
+To run these through the gateway instead: `MNEMOSURE_EMBED_PROVIDER=api` /
+`MNEMOSURE_RERANK_PROVIDER=api`.
 
 ### Switching embedding models (migration)
 
@@ -132,7 +214,7 @@ source .venv/bin/activate
 # 2) install dependencies
 pip install -r requirements.txt
 
-# 3) provide your OpenRouter key
+# 3) provide a key for answer generation (embedding/rerank are local — no key needed)
 cp .env.example .env        # then edit .env and set OPENROUTER_API_KEY
 
 # 4) verify all four model roles are reachable
@@ -261,6 +343,18 @@ docker build -t mnemosure-demo .
 docker run -p 8000:8000 -e OPENROUTER_API_KEY=sk-or-... mnemosure-demo
 # → http://127.0.0.1:8000  (health: /health)
 ```
+
+## Upgrading from 0.3.x (breaking changes)
+
+0.4.0 moves **embedding and rerank to your machine by default** (both were gateway-only before).
+
+- **An existing warehouse will not open as-is.** The default embedding model changed from `baai/bge-m3` to `intfloat/multilingual-e5-large`, so the vectors differ. Running it prints exactly which variables to set. Pick one:
+  - **Keep it** — `MNEMOSURE_EMBED_PROVIDER=api` and `MNEMOSURE_MODEL_EMBED=baai/bge-m3` (same as 0.3.x)
+  - **Move it** — `python -m mnemosure.reembed` once
+- **Rerank now defaults to local too.** For the gateway, set `MNEMOSURE_RERANK_PROVIDER=api`.
+- **The honesty-gate floor default now differs per provider** — `api` 0.15, `local` 0.20, because the two models produce different score scales. An explicit `MNEMOSURE_RERANK_FLOOR` still wins.
+- **Retrieval candidate count default is 6 → 40** (`MNEMOSURE_CANDIDATE_K`), to reduce "I have it but cannot find it" answers as the warehouse grows.
+- **fastembed is now a base dependency** — `pip install "mnemosure[local]"` is no longer needed (`[local]` remains as an empty alias). About 3.4GB of weights is fetched once on first use.
 
 ## Upgrading from 0.2.x (breaking changes)
 

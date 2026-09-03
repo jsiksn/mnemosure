@@ -13,6 +13,7 @@ rerank는 OpenAI SDK에 라우트가 없어 같은 호스트의 /rerank 를 직�
 """
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass
 from typing import Any
@@ -26,7 +27,8 @@ from . import config
 # openai 클라이언트는 한 번만 만들어 재사용한다(호출마다 새로 만들면 낭비).
 _client: OpenAI | None = None
 _embed_client: OpenAI | None = None
-_local_embedder = None  # fastembed 인스턴스 (EMBED_PROVIDER=local일 때만)
+_local_embedder = None  # fastembed 임베더 (EMBED_PROVIDER=local일 때만)
+_local_reranker = None  # fastembed 교차인코더 (RERANK_PROVIDER=local일 때만)
 
 # OpenRouter가 권장하는 앱 식별 헤더(집계용). 다른 게이트웨이는 무시한다.
 _APP_HEADERS = {
@@ -131,9 +133,9 @@ def embed(texts, model: str = config.MODEL_EMBED) -> list[list[float]]:
     반환 : 항상 '벡터들의 리스트'. (문장 하나만 줘도 [벡터] 형태로 돌려준다)
 
     공급 방식은 config.EMBED_PROVIDER 를 따른다:
-      - "api"  : OpenAI 호환 /embeddings 호출(기본, 기본 모델 bge-m3)
-      - "local": fastembed 로 내 컴퓨터에서 계산(선택 설치: pip install "mnemosure[local]",
-                 기본 모델 multilingual-e5-large — API 기본과 벡터가 다르므로 전환 시 재임베딩 필요)
+      - "local": fastembed 로 내 컴퓨터에서 계산(★기본, 모델 multilingual-e5-large)
+      - "api"  : OpenAI 호환 /embeddings 호출(모델 bge-m3)
+      ★ 두 모델은 벡터가 다르므로 방식을 바꾸면 재임베딩이 필요하다(창고 메타 검사가 안내한다).
     """
     if isinstance(texts, str):
         texts = [texts]
@@ -153,7 +155,8 @@ def _embed_local(texts: list[str]) -> list[list[float]]:
             from fastembed import TextEmbedding
         except ImportError as e:
             raise RuntimeError(
-                'Local embeddings need the optional dependency: pip install "mnemosure[local]"'
+                "Local embeddings need fastembed (a base dependency): pip install -U mnemosure\n"
+                "  (or set MNEMOSURE_EMBED_PROVIDER=api to use the gateway instead)"
             ) from e
         _local_embedder = TextEmbedding(model_name=config.MODEL_EMBED_LOCAL)
     return [vec.tolist() for vec in _local_embedder.embed(texts)]
@@ -182,6 +185,11 @@ def rerank(
     ★ OpenAI SDK에는 rerank가 없어서, base_url 호스트의 /rerank 를 직접 HTTP 호출한다.
       (Cohere 관례 형식: {model, query, documents, top_n} → results[{index, relevance_score, ...}])
     """
+    if not documents:
+        return []
+    if config.RERANK_PROVIDER == "local":
+        return _rerank_local(query, documents, top_n)
+
     payload = {
         "model": model,
         "query": query,
@@ -213,3 +221,32 @@ def rerank(
             text = documents[idx] if 0 <= idx < len(documents) else ""
         hits.append(RerankHit(index=idx, score=score, document=text))
     return hits
+
+
+def _rerank_local(
+    query: str, documents: list[str], top_n: int | None = None
+) -> list[RerankHit]:
+    """fastembed 교차인코더로 로컬 재순위. 첫 사용 때 모델을 허깅페이스에서 받아 캐시한다.
+
+    ★ 이 모델은 0~1 점수가 아니라 로짓(음수 가능, 대략 -4~+4)을 낸다.
+      게이트 문턱(RERANK_FLOOR)이 api 쪽과 같은 척도를 보게 하려고 시그모이드로 0~1로 옮긴다.
+    """
+    global _local_reranker
+    if _local_reranker is None:
+        try:
+            from fastembed.rerank.cross_encoder import TextCrossEncoder
+        except ImportError as e:
+            raise RuntimeError(
+                "Local rerank needs fastembed (a base dependency): pip install -U mnemosure\n"
+                "  (or set MNEMOSURE_RERANK_PROVIDER=api to use the gateway, "
+                "or MNEMOSURE_RERANK=off to skip rerank)"
+            ) from e
+        _local_reranker = TextCrossEncoder(model_name=config.MODEL_RERANK_LOCAL)
+
+    logits = list(_local_reranker.rerank(query, documents))
+    hits = [
+        RerankHit(index=i, score=1.0 / (1.0 + math.exp(-float(z))), document=documents[i])
+        for i, z in enumerate(logits)
+    ]
+    hits.sort(key=lambda h: h.score, reverse=True)
+    return hits[: top_n] if top_n is not None else hits

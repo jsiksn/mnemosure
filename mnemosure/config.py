@@ -56,20 +56,21 @@ def get_embed_api_key() -> str:
 # 자동 전환은 하지 않는다(원치 않은 모델로 바뀌는 걸 방지) — 오직 사용자가 env로 수동 지정.
 MODEL_BRAIN = os.environ.get("MNEMOSURE_MODEL_BRAIN", "qwen/qwen3.7-plus")            # 메인 두뇌: 답변 생성
 MODEL_FLASH = os.environ.get("MNEMOSURE_MODEL_FLASH", "qwen/qwen3.5-flash-02-23")     # 보조 두뇌: 추출·분류·연결 판정
-MODEL_EMBED = os.environ.get("MNEMOSURE_MODEL_EMBED", "baai/bge-m3")                  # 색인: 기억을 벡터로 저장·의미 검색
-MODEL_RERANK = os.environ.get("MNEMOSURE_MODEL_RERANK", "cohere/rerank-4-fast")       # 정밀 선별: 회수 후보 재순위
+MODEL_EMBED = os.environ.get("MNEMOSURE_MODEL_EMBED", "baai/bge-m3")                  # 색인(EMBED_PROVIDER=api 일 때)
+MODEL_RERANK = os.environ.get("MNEMOSURE_MODEL_RERANK", "cohere/rerank-4-fast")       # 재순위(RERANK_PROVIDER=api 일 때)
 
-EMBED_DIM = 1024  # bge-m3 고정 차원
+EMBED_DIM = 1024  # 기본 두 모델(bge-m3 · multilingual-e5-large) 공통 차원
 
 
 # --- 임베딩 공급 방식 --------------------------------------------------------
-# "api"  : 위 EMBED_BASE_URL 로 호출(기본).
-# "local": fastembed(선택 설치, `pip install "mnemosure[local]"`)로 내 컴퓨터에서 계산.
-#          기본 로컬 모델은 multilingual-e5-large(1024차원, fastembed 지원 다국어 중 최상).
-#          ★ API 기본(bge-m3)과는 다른 모델이라 벡터가 호환되지 않는다 —
-#            api↔local 을 바꾸면 `python -m mnemosure.reembed`로 창고를 한 번 재계산한다.
+# "local": fastembed(ONNX)로 내 컴퓨터에서 계산(★기본). 키·비용 없이 돌고, 대화 원문이
+#          밖으로 나가지 않는다. 첫 사용 때 모델 가중치를 Hugging Face에서 한 번 받아 캐시한다.
+#          기본 모델은 multilingual-e5-large(1024차원, fastembed 지원 다국어 중 최상).
+# "api"  : EMBED_BASE_URL 로 호출(기본 게이트웨이의 bge-m3). GPU가 없어 첫 색인이 느릴 때 쓴다.
+#          ★ 두 모델은 벡터가 호환되지 않는다 — local↔api 를 바꾸면
+#            `python -m mnemosure.reembed`로 창고를 한 번 재계산한다.
 #            (불일치는 창고 메타 검사가 잡아서 안내한다)
-EMBED_PROVIDER = os.environ.get("MNEMOSURE_EMBED_PROVIDER", "api").lower()
+EMBED_PROVIDER = os.environ.get("MNEMOSURE_EMBED_PROVIDER", "local").lower()
 MODEL_EMBED_LOCAL = os.environ.get("MNEMOSURE_MODEL_EMBED_LOCAL", "intfloat/multilingual-e5-large")
 
 
@@ -83,6 +84,25 @@ def embed_models_compatible(a: str, b: str) -> bool:
     예: 'baai/bge-m3'(API)와 'BAAI/bge-m3'(로컬)는 같은 모델이다."""
     norm = lambda s: (s or "").strip().lower()
     return norm(a) == norm(b)
+
+
+# --- 재순위 공급 방식 --------------------------------------------------------
+# "local": fastembed 교차인코더로 내 컴퓨터에서 계산(★기본). 키가 필요 없다.
+#          기본 모델은 jina-reranker-v2-base-multilingual(한국어 포함 다국어).
+#          ★ 이 모델은 로짓(음수 가능)을 내므로 시그모이드로 0~1로 옮겨서 쓴다 —
+#            게이트 문턱(RERANK_FLOOR)이 api 쪽과 같은 척도가 되게 하기 위함.
+# "api"  : BASE_URL 호스트의 /rerank 를 직접 호출(Cohere 관례 형식).
+#          ★ 일반 로컬 추론 서버는 이 라우트를 내주지 않는다 — BASE_URL 을 그런 서버로
+#            바꿀 때는 재순위를 local 로 두거나 껐다(MNEMOSURE_RERANK=off).
+RERANK_PROVIDER = os.environ.get("MNEMOSURE_RERANK_PROVIDER", "local").lower()
+MODEL_RERANK_LOCAL = os.environ.get(
+    "MNEMOSURE_MODEL_RERANK_LOCAL", "jinaai/jina-reranker-v2-base-multilingual"
+)
+
+
+def rerank_model_id() -> str:
+    """현재 설정이 실제로 쓰는 재순위 모델 id."""
+    return MODEL_RERANK_LOCAL if RERANK_PROVIDER == "local" else MODEL_RERANK
 
 
 # --- rerank 사용 여부 --------------------------------------------------------

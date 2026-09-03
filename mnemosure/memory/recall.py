@@ -21,11 +21,26 @@ from .storage import MemoryStore
 from .store import _cosine, _parse_json  # 같은 보조 함수 재사용(중복 방지)
 
 
-CANDIDATE_K = 6        # 임베딩으로 1차로 모을 후보 수
-EVIDENCE_N = 4         # rerank 후 '씨앗 증거'로 쓸 상위 수
+# 1차(임베딩)로 모을 후보 수. ★ 여기서 잘린 기억은 재순위도 게이트도 볼 수 없다 —
+# 후보를 좁게 잡으면 창고가 커질수록 '있는데 못 찾는' 답이 늘고, 그것이 "기록에 없다"로
+# 나가서 정직한 답과 구별되지 않는다. 연구노트 7,340조각으로 실측한 정답 회수율:
+#   창고 19조각  → 후보 6개 95.8% / 40개 100.0%
+#   창고 7,340개 → 후보 6개 60.2% / 40개  75.7% / 100개 82.5%
+# 창고가 클수록 후보를 늘리는 값이 커지므로 기본을 40으로 둔다(자기 규모에 맞게 env로 조정).
+CANDIDATE_K = int(os.environ.get("MNEMOSURE_CANDIDATE_K", "40"))
+EVIDENCE_N = int(os.environ.get("MNEMOSURE_EVIDENCE_N", "4"))   # rerank 후 '씨앗 증거'로 쓸 상위 수
+
 # 정직 게이트: 최상위 관련도가 이보다 낮으면 근거 없음(unknown)으로 본다.
-# 기본값은 기본 모델(cohere/rerank-4-fast · bge-m3) 기준 보정값 — 다른 모델을 쓰면 env로 조정.
-RERANK_FLOOR = float(os.environ.get("MNEMOSURE_RERANK_FLOOR", "0.15"))   # rerank 점수용
+# ★ 문턱은 점수를 내는 모델마다 척도가 달라서 하나의 기본값이 두 방식에 맞지 않는다.
+#   - api  (cohere/rerank-4-fast): 0~1 관련도 점수를 그대로 받는다 → 0.15
+#   - local(jina-reranker-v2)    : 로짓(-4~+4)을 내므로 llm.py 가 시그모이드로 0~1로 옮긴다.
+#     같은 척도가 되긴 하지만 분포가 달라 문턱도 다르다. 연구노트 자료 24문항 실측:
+#       문턱 0.10 → 있는데 '모른다' 0.0% · 없는데 '답함' 79.2%
+#       문턱 0.15 → 16.7% · 29.2%
+#       문턱 0.20 → 33.3% ·  8.3%   ← 지어내지 않는 쪽을 무겁게 봐서 이 값
+#     표본이 24개뿐이고 두 분포가 겹치므로, 자기 자료로 한 번 재보고 env로 조정하는 편이 좋다.
+_FLOOR_DEFAULT = "0.15" if config.RERANK_PROVIDER == "api" else "0.20"
+RERANK_FLOOR = float(os.environ.get("MNEMOSURE_RERANK_FLOOR", _FLOOR_DEFAULT))
 COSINE_FLOOR = float(os.environ.get("MNEMOSURE_COSINE_FLOOR", "0.35"))   # rerank off일 때 코사인 점수용
 
 

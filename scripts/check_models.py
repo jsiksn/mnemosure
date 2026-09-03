@@ -51,7 +51,12 @@ def check_embed():
     vectors = llm.embed("The quick brown fox jumps over the lazy dog.")
     dim = len(vectors[0])
     ok = "OK" if dim == config.EMBED_DIM else f"예상({config.EMBED_DIM})과 다름"
-    return {"모델": config.MODEL_EMBED, "차원": dim, "차원 확인": ok}
+    return {
+        "모델": config.embed_model_id(),
+        "도는 곳": "내 컴퓨터(fastembed)" if config.EMBED_PROVIDER == "local" else config.EMBED_BASE_URL,
+        "차원": dim,
+        "차원 확인": ok,
+    }
 
 
 def check_rerank():
@@ -65,7 +70,8 @@ def check_rerank():
     )
     top = hits[0]
     return {
-        "모델": config.MODEL_RERANK,
+        "모델": config.rerank_model_id(),
+        "도는 곳": "내 컴퓨터(fastembed)" if config.RERANK_PROVIDER == "local" else config.BASE_URL + "/rerank",
         "후보 수": len(hits),
         "최상위": f"[{top.score:.3f}] {top.document}",
     }
@@ -73,14 +79,17 @@ def check_rerank():
 
 def main():
     print("=" * 64)
-    print("Mnemosure — 4개 모델 역할 생존 확인 (base:", config.BASE_URL + ")")
+    print("Mnemosure — 4개 모델 역할 생존 확인")
+    print(f"  게이트웨이 : {config.BASE_URL}")
+    print(f"  임베딩     : {config.EMBED_PROVIDER}  ({config.embed_model_id()})")
+    print(f"  재순위     : {config.RERANK_PROVIDER}  ({config.rerank_model_id()})")
     print("=" * 64)
 
     checks = [
         (f"LLM 메인  ({config.MODEL_BRAIN})", check_chat_plus),
         (f"LLM 보조  ({config.MODEL_FLASH})", check_chat_flash),
-        (f"Embedding ({config.MODEL_EMBED})", check_embed),
-        (f"Rerank    ({config.MODEL_RERANK})", check_rerank),
+        (f"Embedding ({config.embed_model_id()} · {config.EMBED_PROVIDER})", check_embed),
+        (f"Rerank    ({config.rerank_model_id()} · {config.RERANK_PROVIDER})", check_rerank),
     ]
     results = [(title, _run(title, fn)) for title, fn in checks]
 

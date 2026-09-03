@@ -60,11 +60,25 @@ class MemoryStore:
             if self._check_embedding and meta_model and has_vectors and not config.embed_models_compatible(
                 meta_model, config.embed_model_id()
             ):
+                # 창고를 유지하려면 '그 모델을 쓰던 설정'으로 되돌려야 한다. 임베딩 모델은
+                # 공급 방식(local/api)에 따라 다른 변수에서 오므로, 되돌릴 변수를 정확히 지목한다.
+                if config.EMBED_PROVIDER == "local":
+                    keep = (
+                        f"      MNEMOSURE_EMBED_PROVIDER=api\n"
+                        f"      MNEMOSURE_MODEL_EMBED={meta_model}"
+                    )
+                else:
+                    keep = (
+                        f"      MNEMOSURE_EMBED_PROVIDER=local\n"
+                        f"      MNEMOSURE_MODEL_EMBED_LOCAL={meta_model}"
+                    )
                 raise RuntimeError(
                     f"Embedding model mismatch: this warehouse was built with '{meta_model}' "
-                    f"but the current setting is '{config.embed_model_id()}'.\n"
-                    f"  - To keep the warehouse: set MNEMOSURE_MODEL_EMBED back to '{meta_model}'\n"
-                    f"  - To switch models: re-embed once with  python -m mnemosure.reembed \"{self.path}\""
+                    f"but the current setting is '{config.embed_model_id()}' "
+                    f"(EMBED_PROVIDER={config.EMBED_PROVIDER}).\n"
+                    f"  - To keep the warehouse as-is, set:\n{keep}\n"
+                    f"  - To switch to the current model, re-embed once:\n"
+                    f"      python -m mnemosure.reembed \"{self.path}\""
                 )
         else:
             self.memories = []

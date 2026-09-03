@@ -59,34 +59,98 @@ flowchart TB
 
 **회상** (`mnemosure/memory/recall.py`): 질문을 임베딩해 상위 후보를 모은다 — *대체된 기억도 포함해서*. 낡은 믿음을 바로잡으려면 먼저 찾아야 하기 때문이다. 재순위 모델이 관련도 순으로 다시 세우고, 최고점조차 기준에 못 미치면 지어내는 대신 **unknown**으로 답한다. 살아남은 씨앗을 `supersedes`/`because` 링크로 2홉 확장하고, brain 모델이 **그 증거에만 근거해**(temperature 0) 답을 구성한다. "전부 요약해줘"류 질문은 top-K를 건너뛰고 활성 기억 전체에 근거한다(누락 방지).
 
-## 모델 (OpenRouter 경유 — 자유 교체)
+## 모델 — 네 역할, 무거운 쪽은 내 컴퓨터가 기본
 
-모든 모델 호출은 하나의 OpenAI 호환 게이트웨이(기본: OpenRouter)를 거친다. 기본값:
+| 역할 | 기본 모델 | 어디서 도나 | 키 |
+|---|---|---|---|
+| 색인 (임베딩, 1024차원) | `intfloat/multilingual-e5-large` | **내 컴퓨터** | 불필요 |
+| 정밀 재순위 | `jinaai/jina-reranker-v2-base-multilingual` | **내 컴퓨터** | 불필요 |
+| Brain (답변 생성) | `qwen/qwen3.7-plus` | OpenRouter | 필요 |
+| Flash (추출·연결 판정) | `qwen/qwen3.5-flash-02-23` | OpenRouter | 필요 |
 
-| 역할 | 기본 모델 | 교체 env |
+**대화 원문은 밖으로 나가지 않는다.** 기억을 벡터로 만들고 찾아내는 일은 전부 내 컴퓨터에서 하고,
+밖으로 가는 것은 질문 하나에 답을 짜는 호출뿐이다. 양이 많은 쪽이 로컬이라 실제 비용도 거의 안 든다.
+
+첫 실행 때 모델 가중치 약 3.4GB(임베딩 2.24 + 재순위 1.11)를 Hugging Face에서 한 번 받아 캐시한다
+— 이후로는 네트워크 없이 돈다. GPU가 없으면 첫 색인이 느리다(아래 "전부 게이트웨이로" 참고).
+
+### 역할별로 어디서 돌릴지 고르기
+
+| 무엇을 | env | 기본 | 다른 값 |
+|---|---|---|---|
+| 임베딩을 어디서 | `MNEMOSURE_EMBED_PROVIDER` | `local` | `api` → 게이트웨이 |
+| 재순위를 어디서 | `MNEMOSURE_RERANK_PROVIDER` | `local` | `api` → 게이트웨이 |
+| 게이트웨이 주소 | `MNEMOSURE_BASE_URL` | OpenRouter | 아무 OpenAI 호환 서버 |
+| 게이트웨이 키 | `MNEMOSURE_API_KEY` | — | (`OPENROUTER_API_KEY`도 읽음) |
+
+모델 이름은 역할마다 따로 바꾼다. `local`과 `api`가 **서로 다른 변수를 본다**:
+
+| 역할 | `local`일 때 | `api`일 때 |
 |---|---|---|
-| Brain (답변 생성) | `qwen/qwen3.7-plus` | `MNEMOSURE_MODEL_BRAIN` |
-| Flash (추출·연결 판정) | `qwen/qwen3.5-flash-02-23` | `MNEMOSURE_MODEL_FLASH` |
-| 색인 (임베딩, 1024차원) | `baai/bge-m3` | `MNEMOSURE_MODEL_EMBED` |
-| 정밀 재순위 | `cohere/rerank-4-fast` | `MNEMOSURE_MODEL_RERANK` |
+| 임베딩 | `MNEMOSURE_MODEL_EMBED_LOCAL` | `MNEMOSURE_MODEL_EMBED` |
+| 재순위 | `MNEMOSURE_MODEL_RERANK_LOCAL` | `MNEMOSURE_MODEL_RERANK` |
+| Brain | — | `MNEMOSURE_MODEL_BRAIN` |
+| Flash | — | `MNEMOSURE_MODEL_FLASH` |
 
-어느 역할이든 OpenRouter의 아무 모델 id로 바꿀 수 있다(`anthropic/claude-sonnet-5`, `openai/gpt-…` 등). 스위치 두 개 더:
+### 조합 세 가지
 
-- `MNEMOSURE_RERANK=off` — 재순위 호출을 생략. 순위·정직 게이트는 1차 코사인 점수를 쓴다. 저렴하지만 정밀도는 다소 낮다.
-- `MNEMOSURE_BASE_URL` — OpenRouter 대신 다른 OpenAI 호환 게이트웨이 사용(이때 키는 `MNEMOSURE_API_KEY`).
-- `MNEMOSURE_EMBED_BASE_URL` — **임베딩만** 다른 곳으로 보낸다(키는 `MNEMOSURE_EMBED_API_KEY`, 안 적으면 본 키). 안 적으면 `MNEMOSURE_BASE_URL`과 같은 곳을 쓴다. 로컬 GPU에 임베딩 모델을 올려 둔 경우가 대표적인 용도다 — 양이 많은 색인만 자기 장비로 돌리고 나머지 호출은 그대로 둔다.
+**1. 그대로 쓰기** — 키 하나만 넣으면 끝. 색인은 로컬, 답변만 게이트웨이.
 
-  ```bash
-  MNEMOSURE_EMBED_BASE_URL=http://<GPU호스트>:11434/v1   # 예: Ollama의 OpenAI 호환 경로
-  MNEMOSURE_EMBED_API_KEY=ollama                        # 키를 안 보는 서버라도 SDK가 값을 요구한다
-  MNEMOSURE_MODEL_EMBED=<그 서버에 올려 둔 임베딩 모델>
-  ```
+```bash
+OPENROUTER_API_KEY=sk-or-...
+```
 
-  **재순위는 이 방법으로 옮길 수 없다.** OpenAI 호환 규격에 재순위 라우트가 없어 같은 호스트의 `/rerank`를 직접 부르는데(Cohere 관례 형식), 일반 로컬 추론 서버는 그 경로를 내지 않는다. `MNEMOSURE_BASE_URL`을 그런 서버로 바꾸면 재순위가 깨지므로, 임베딩만 옮기고 재순위는 게이트웨이에 남기는 편이 안전하다. 재순위는 회수 후보 몇 개에만 도는 호출이라 비용이 작다.
+**2. 전부 내 장비에서 (키 없이)** — Ollama·vLLM 같은 OpenAI 호환 서버에 채팅 모델을 올려 두고 그쪽을 가리킨다.
+임베딩·재순위는 이미 로컬이므로 **바깥으로 나가는 호출이 0이 된다.**
 
-정직 게이트 임계값(`MNEMOSURE_RERANK_FLOOR`, `MNEMOSURE_COSINE_FLOOR`)의 기본값은 위 기본 모델 기준 보정값이다 — 재순위·임베딩 모델을 바꾸면 자기 데이터로 재확인을 권한다.
+```bash
+MNEMOSURE_BASE_URL=http://<내-GPU호스트>:11434/v1
+MNEMOSURE_API_KEY=ollama          # 키를 안 보는 서버라도 SDK가 값을 요구한다
+MNEMOSURE_MODEL_BRAIN=<올려 둔 모델>
+MNEMOSURE_MODEL_FLASH=<올려 둔 모델>
+```
 
-API 키는 **오직** 환경변수(또는 `.env`)에서만 읽고 절대 하드코딩하지 않는다. 기본값은 `mnemosure/config.py`(단일 출처)에 있다.
+**3. 전부 게이트웨이로** — GPU가 없어 첫 색인이 느릴 때. 0.3.0까지의 기본과 같은 상태가 된다.
+
+```bash
+MNEMOSURE_EMBED_PROVIDER=api
+MNEMOSURE_RERANK_PROVIDER=api
+OPENROUTER_API_KEY=sk-or-...
+```
+
+> **임베딩 방식을 바꾸면 창고를 한 번 다시 계산해야 한다.** `local`과 `api`의 기본 모델이 서로
+> 다른 벡터를 만들기 때문이다. 실행하면 안내가 뜨고, `python -m mnemosure.reembed`로 옮기면 된다
+> — 자세히는 아래 "임베딩 모델 교체".
+
+### 알아 둘 것 둘
+
+**재순위를 `api`로 두고 `BASE_URL`만 로컬 서버로 바꾸면 재순위가 깨진다.** OpenAI 호환 규격에는
+재순위 라우트가 없어서 같은 호스트의 `/rerank`를 직접 부르는데(Cohere 관례 형식), 일반 로컬 추론
+서버는 그 경로를 내주지 않는다. `BASE_URL`을 옮길 때는 재순위를 `local`로 두면 된다(기본값이다).
+아예 끄려면 `MNEMOSURE_RERANK=off` — 그러면 순위·정직 게이트가 1차 코사인 점수를 쓴다.
+
+**정직 게이트 문턱은 모델마다 척도가 다르다.** `MNEMOSURE_RERANK_FLOOR`(재순위 점수용)와
+`MNEMOSURE_COSINE_FLOOR`(재순위 off일 때)의 기본값은 각 기본 모델 기준 보정값이다.
+모델을 바꿨으면 자기 자료로 한 번 재보고 조정하는 편이 좋다 — 문턱이 너무 높으면 있는 기억도
+"기록에 없다"로 나가고, 너무 낮으면 엉뚱한 근거로 답한다.
+
+### 회수 후보 수
+
+`MNEMOSURE_CANDIDATE_K`(기본 40)는 1차 검색이 남길 후보 수다. **여기서 잘린 기억은 재순위도
+정직 게이트도 볼 수 없다** — 좁게 잡으면 창고가 커질수록 "있는데 못 찾는" 답이 늘고, 그것이
+"기록에 없다"로 나가서 정직한 답과 구별되지 않는다. 실측(연구노트 7,340조각, 정답 회수율):
+
+| 창고 크기 | 후보 6개 | 후보 40개 | 후보 100개 |
+|---|---|---|---|
+| 19조각 | 95.8% | 100.0% | 100.0% |
+| 1,000조각 | 75.7% | 86.1% | 93.2% |
+| 7,340조각 | 60.2% | 75.7% | 82.5% |
+
+창고가 클수록 후보를 늘리는 값이 커진다. 기억이 수만 건을 넘으면 더 올려 보고,
+반대로 아주 작은 창고에서 응답을 빠르게 하려면 낮춰도 된다.
+
+API 키는 **오직** 환경변수(또는 `.env`)에서만 읽고 절대 하드코딩하지 않는다.
+기본값은 `mnemosure/config.py`(단일 출처)에 있다.
 
 ## 설치
 
@@ -94,7 +158,9 @@ API 키는 **오직** 환경변수(또는 `.env`)에서만 읽고 절대 하드�
 pip install mnemosure          # 코어 제품: 메모리 라이브러리 + MCP 서버
 ```
 
-[OpenRouter 키](https://openrouter.ai/keys)를 넣고 MCP 서버를 실행한다:
+임베딩·재순위는 내 컴퓨터에서 돌지만 **답변 생성은 모델이 필요하다.**
+게이트웨이를 쓸 거면 [OpenRouter 키](https://openrouter.ai/keys)를 넣는다
+(자기 서버에 채팅 모델을 올려 뒀다면 위 "조합 세 가지"의 2번을 보면 된다):
 
 ```bash
 export OPENROUTER_API_KEY=sk-or-...
@@ -104,14 +170,20 @@ mnemosure-mcp                  # stdio MCP 서버
 - **기억 저장 위치:** 설치본은 `~/.mnemosure/memories.json`의 *빈* 창고로 시작한다. `MNEMOSURE_DATA_DIR`로 폴더를 바꿀 수 있다.
 - pip 패키지는 **제품만** 담는다(`config`, `llm`, `mcp_server`, `reembed`, `memory/`). 웹 데모·평가 하네스는 이 레포에 있다(클론해서 실행).
 
-### 로컬 임베딩 (색인은 키 없이)
+### 로컬 모델 (기본 · 추가 설치 없음)
 
-```bash
-pip install "mnemosure[local]"
-export MNEMOSURE_EMBED_PROVIDER=local
+임베딩과 재순위는 [fastembed](https://github.com/qdrant/fastembed)로 내 컴퓨터에서 계산한다.
+fastembed는 본 의존성에 들어 있어 `pip install mnemosure`만으로 준비된다.
+
+```
+임베딩  intfloat/multilingual-e5-large              2.24GB · 1024차원
+재순위  jinaai/jina-reranker-v2-base-multilingual   1.11GB · 한국어 포함
 ```
 
-임베딩을 [fastembed](https://github.com/qdrant/fastembed)로 내 컴퓨터에서 계산한다(기본 모델: `intfloat/multilingual-e5-large`, 1024차원). 모델 가중치는 패키지에 **미포함** — 첫 사용 때 Hugging Face에서 한 번 내려받아 캐시한다(이후 오프라인 동작; 막힌 망에서는 fastembed 캐시 폴더에 수동 배치). chat·재순위는 여전히 API 키를 쓴다.
+모델 가중치는 패키지에 **미포함** — 첫 사용 때 Hugging Face에서 한 번 받아 캐시한다.
+이후로는 네트워크 없이 돈다(막힌 망에서는 fastembed 캐시 폴더에 수동 배치).
+
+게이트웨이로 돌리고 싶으면 `MNEMOSURE_EMBED_PROVIDER=api` / `MNEMOSURE_RERANK_PROVIDER=api`.
 
 ### 임베딩 모델 교체 (마이그레이션)
 
@@ -132,7 +204,7 @@ source .venv/bin/activate
 # 2) 의존성 설치
 pip install -r requirements.txt
 
-# 3) OpenRouter 키 설정
+# 3) 답변 생성용 키 설정 (임베딩·재순위는 로컬이라 키가 필요 없다)
 cp .env.example .env        # .env 를 열어 OPENROUTER_API_KEY 설정
 
 # 4) 네 가지 모델 역할 연결 확인
@@ -259,6 +331,18 @@ docker build -t mnemosure-demo .
 docker run -p 8000:8000 -e OPENROUTER_API_KEY=sk-or-... mnemosure-demo
 # → http://127.0.0.1:8000  (헬스체크: /health)
 ```
+
+## 0.3.x에서 올라오기 (호환성 변경)
+
+0.4.0은 **임베딩·재순위의 기본을 내 컴퓨터로** 옮겼다(전에는 둘 다 게이트웨이).
+
+- **기존 창고는 그대로 열리지 않는다.** 기본 임베딩 모델이 `baai/bge-m3` → `intfloat/multilingual-e5-large`로 바뀌어 벡터가 다르다. 실행하면 어느 변수를 어떻게 두라는 안내가 뜬다. 둘 중 하나를 고르면 된다:
+  - **그대로 쓰기** — `MNEMOSURE_EMBED_PROVIDER=api` 와 `MNEMOSURE_MODEL_EMBED=baai/bge-m3` (0.3.x와 같은 상태)
+  - **로컬로 옮기기** — `python -m mnemosure.reembed` 한 번
+- **재순위 기본도 로컬이 됐다.** 게이트웨이로 되돌리려면 `MNEMOSURE_RERANK_PROVIDER=api`.
+- **정직 게이트 문턱 기본값이 방식마다 다르다** — `api` 0.15, `local` 0.20 (모델이 내는 점수 척도가 달라서다). 직접 지정한 `MNEMOSURE_RERANK_FLOOR`가 있으면 그 값이 우선한다.
+- **회수 후보 수 기본이 6 → 40**으로 올랐다(`MNEMOSURE_CANDIDATE_K`). 창고가 커질 때 "있는데 못 찾는" 답을 줄이기 위함이다.
+- **fastembed가 본 의존성이 됐다** — `pip install "mnemosure[local]"`는 이제 필요 없다(`[local]`은 빈 별칭으로 남겨 뒀다). 첫 실행 때 모델 가중치 약 3.4GB를 한 번 받는다.
 
 ## 0.2.x에서 올라오기 (호환성 변경)
 

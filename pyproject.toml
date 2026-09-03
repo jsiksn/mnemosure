@@ -28,12 +28,14 @@ dependencies = [
     "numpy>=1.24",
     "python-dotenv>=1.0",
     "mcp>=1.2",
+    # 임베딩·재순위의 기본 공급 방식이 'local'(내 컴퓨터에서 계산)이라 본목록에 둔다.
+    # 게이트웨이로만 쓰려면 MNEMOSURE_EMBED_PROVIDER=api · MNEMOSURE_RERANK_PROVIDER=api.
+    "fastembed>=0.8",
 ]
 
 [project.optional-dependencies]
-# 로컬 임베딩(fastembed, ONNX): API 키·비용 없이 임베딩만 내 컴퓨터에서 계산.
-# 모델 가중치는 첫 사용 때 Hugging Face에서 내려받아 캐시된다(패키지에 미포함).
-local = ["fastembed>=0.5"]
+# 이제 fastembed 는 본목록에 있다. `[local]` 은 옛 설치 명령이 깨지지 않게 남겨 둔 별칭이다.
+local = []
 
 [project.scripts]
 mnemosure-mcp = "mnemosure.mcp_server:main"
