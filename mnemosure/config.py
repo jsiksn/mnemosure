@@ -54,10 +54,21 @@ def get_embed_api_key() -> str:
 # --- 모델명 ----------------------------------------------------------------
 # 기본값은 아래 그대로. 바꾸고 싶으면 env(또는 .env)에 MNEMOSURE_MODEL_* 를 넣으면 그 값이 쓰인다.
 # 자동 전환은 하지 않는다(원치 않은 모델로 바뀌는 걸 방지) — 오직 사용자가 env로 수동 지정.
-MODEL_BRAIN = os.environ.get("MNEMOSURE_MODEL_BRAIN", "qwen/qwen3.7-plus")            # 메인 두뇌: 답변 생성
-MODEL_FLASH = os.environ.get("MNEMOSURE_MODEL_FLASH", "qwen/qwen3.5-flash-02-23")     # 보조 두뇌: 추출·분류·연결 판정
-MODEL_EMBED = os.environ.get("MNEMOSURE_MODEL_EMBED", "baai/bge-m3")                  # 색인(EMBED_PROVIDER=api 일 때)
-MODEL_RERANK = os.environ.get("MNEMOSURE_MODEL_RERANK", "cohere/rerank-4-fast")       # 재순위(RERANK_PROVIDER=api 일 때)
+#
+# 무료 모드(MNEMOSURE_FREE=1): 크레딧 없이 쓰도록 brain·flash 기본값을 OpenRouter의
+# 무료(:free) 모델로 바꾼다. 개별 MNEMOSURE_MODEL_* 지정은 여전히 그보다 우선한다.
+# ★ 무료 모델은 하루 요청 수 제한(크레딧 미구매 계정 기준 50회/일)이 있고, 목록이
+#   수시로 바뀐다 — 기본값이 사라지면 https://openrouter.ai/models?q=free 에서 골라
+#   MNEMOSURE_MODEL_BRAIN / _FLASH 로 지정한다.
+FREE_MODE = os.environ.get("MNEMOSURE_FREE", "").lower() in ("1", "true", "on", "yes")
+
+_BRAIN_DEFAULT = "minimax/minimax-m3:free" if FREE_MODE else "qwen/qwen3.7-plus"
+_FLASH_DEFAULT = "nvidia/nemotron-3.5-lightning:free" if FREE_MODE else "qwen/qwen3.7-flash"
+
+MODEL_BRAIN = os.environ.get("MNEMOSURE_MODEL_BRAIN", _BRAIN_DEFAULT)     # 메인 두뇌: 답변 생성
+MODEL_FLASH = os.environ.get("MNEMOSURE_MODEL_FLASH", _FLASH_DEFAULT)     # 보조 두뇌: 추출·분류·연결 판정
+MODEL_EMBED = os.environ.get("MNEMOSURE_MODEL_EMBED", "baai/bge-m3")      # 색인(EMBED_PROVIDER=api 일 때)
+MODEL_RERANK = os.environ.get("MNEMOSURE_MODEL_RERANK", "cohere/rerank-4-fast")  # 재순위(RERANK_PROVIDER=api 일 때)
 
 EMBED_DIM = 1024  # 기본 두 모델(bge-m3 · multilingual-e5-large) 공통 차원
 

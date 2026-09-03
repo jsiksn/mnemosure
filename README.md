@@ -66,7 +66,7 @@ flowchart TB
 | Index (embedding, 1024-dim) | `intfloat/multilingual-e5-large` | **your machine** | not needed |
 | Precision rerank | `jinaai/jina-reranker-v2-base-multilingual` | **your machine** | not needed |
 | Brain (answer generation) | `qwen/qwen3.7-plus` | OpenRouter | needed |
-| Flash (extraction, link judgement) | `qwen/qwen3.5-flash-02-23` | OpenRouter | needed |
+| Flash (extraction, link judgement) | `qwen/qwen3.7-flash` | OpenRouter | needed |
 
 **Your raw conversations never leave the machine.** Turning memories into vectors and
 searching them happens locally; the only outbound call is the one that composes an answer
@@ -111,7 +111,7 @@ Model names are per-role, and `local` / `api` read **different variables**:
 | Brain | — | `MNEMOSURE_MODEL_BRAIN` |
 | Flash | — | `MNEMOSURE_MODEL_FLASH` |
 
-### Three setups
+### Four setups
 
 **1. As shipped** — one key and you are done. Index local, answers via gateway.
 
@@ -138,6 +138,20 @@ MNEMOSURE_EMBED_PROVIDER=api
 MNEMOSURE_RERANK_PROVIDER=api
 OPENROUTER_API_KEY=sk-or-...
 ```
+
+**4. Free mode (no credits)** — an OpenRouter account with no purchased credits can still
+call the models marked `:free`. One switch swaps the brain/flash defaults to free models:
+
+```bash
+MNEMOSURE_FREE=1
+OPENROUTER_API_KEY=sk-or-...
+```
+
+Per-role `MNEMOSURE_MODEL_BRAIN` / `MNEMOSURE_MODEL_FLASH` still override the free
+defaults. Two caveats: free models are **rate-limited per day** (50 requests/day without
+purchased credits — one `remember` makes several calls, so an active day can hit it), and
+the free roster **rotates** — if a default disappears, pick another from
+[openrouter.ai/models](https://openrouter.ai/models?q=free) and set it per-role.
 
 > **Changing the embedding provider means re-embedding the warehouse once**, because the
 > `local` and `api` defaults are different models producing different vectors. Running it
@@ -242,7 +256,7 @@ export OPENROUTER_API_KEY=sk-or-...
 mnemosure-mcp                  # stdio MCP server
 ```
 
-- **Where memories are stored:** an installed copy starts with an *empty* warehouse at `~/.mnemosure/memories.json`. Override the directory with `MNEMOSURE_DATA_DIR`.
+- **Where memories are stored:** an installed copy starts with an *empty* warehouse at `~/.mnemosure/memories.json`. Override the directory with `MNEMOSURE_DATA_DIR`, or pick a scope with `MNEMOSURE_SCOPE` — `user` shares one warehouse at `~/.mnemosure` across every project; `project` keeps a separate `.mnemosure/` per project (the folder the server was launched from). Handy when registering the MCP server: match it to the registration scope.
 - The pip package ships **only the product** (`config`, `llm`, `mcp_server`, `reembed`, `memory/`). The web demo and evaluation harness live in this repository (clone it to run them).
 
 ### Local models (default · nothing extra to install)

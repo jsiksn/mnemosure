@@ -15,9 +15,14 @@ from .models import Memory
 
 # 기본 저장 위치를 문맥에 맞게 정한다:
 #   1) 환경변수 MNEMOSURE_DATA_DIR 이 있으면 그 폴더의 memories.json (배포·커스텀 우선)
-#   2) 소스 체크아웃(레포 루트에 pyproject.toml)에서 돌면 레포의 data/memories.json
+#   2) 환경변수 MNEMOSURE_SCOPE 가 있으면 그 범위의 창고
+#        user    → 사용자 홈의 ~/.mnemosure/memories.json (모든 프로젝트가 공유)
+#        project → 서버가 뜬 폴더(프로젝트)의 .mnemosure/memories.json (프로젝트별 분리)
+#      → MCP 등록 범위에 맞춰 창고를 가르고 싶을 때 쓴다. 예: 계정 전체(--scope user)
+#        등록엔 MNEMOSURE_SCOPE=user, 특정 리포에만 등록엔 MNEMOSURE_SCOPE=project.
+#   3) 소스 체크아웃(레포 루트에 pyproject.toml)에서 돌면 레포의 data/memories.json
 #      → 데모·개발 스크립트가 커밋된 스냅샷을 그대로 쓴다(동작 불변)
-#   3) pip 로 설치돼 쓰일 땐 사용자 홈의 ~/.mnemosure/memories.json (빈 창고로 시작)
+#   4) pip 로 설치돼 쓰일 땐 사용자 홈의 ~/.mnemosure/memories.json (빈 창고로 시작)
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
@@ -25,6 +30,18 @@ def _resolve_default_path() -> str:
     env_dir = os.environ.get("MNEMOSURE_DATA_DIR")
     if env_dir:
         return os.path.join(env_dir, "memories.json")
+    scope = os.environ.get("MNEMOSURE_SCOPE", "").strip().lower()
+    if scope == "project":
+        # MCP 클라이언트(Claude Code 등)는 stdio 서버를 프로젝트 폴더에서 띄우므로
+        # 그 시점의 작업 폴더가 곧 프로젝트 루트다.
+        return os.path.join(os.getcwd(), ".mnemosure", "memories.json")
+    if scope == "user":
+        return os.path.join(os.path.expanduser("~"), ".mnemosure", "memories.json")
+    if scope:
+        raise RuntimeError(
+            f"MNEMOSURE_SCOPE={scope!r} is not valid — use 'user' or 'project' "
+            "(or set MNEMOSURE_DATA_DIR to point at a folder directly)."
+        )
     if os.path.isfile(os.path.join(_ROOT, "pyproject.toml")):
         return os.path.join(_ROOT, "data", "memories.json")
     return os.path.join(os.path.expanduser("~"), ".mnemosure", "memories.json")

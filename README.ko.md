@@ -66,7 +66,7 @@ flowchart TB
 | 색인 (임베딩, 1024차원) | `intfloat/multilingual-e5-large` | **내 컴퓨터** | 불필요 |
 | 정밀 재순위 | `jinaai/jina-reranker-v2-base-multilingual` | **내 컴퓨터** | 불필요 |
 | Brain (답변 생성) | `qwen/qwen3.7-plus` | OpenRouter | 필요 |
-| Flash (추출·연결 판정) | `qwen/qwen3.5-flash-02-23` | OpenRouter | 필요 |
+| Flash (추출·연결 판정) | `qwen/qwen3.7-flash` | OpenRouter | 필요 |
 
 **대화 원문은 밖으로 나가지 않는다.** 기억을 벡터로 만들고 찾아내는 일은 전부 내 컴퓨터에서 하고,
 밖으로 가는 것은 질문 하나에 답을 짜는 호출뿐이다. 양이 많은 쪽이 로컬이라 실제 비용도 거의 안 든다.
@@ -107,7 +107,7 @@ CUDA가 아닌 장비(AMD·ROCm 등)는 표준 onnxruntime 이 지원하지 않�
 | Brain | — | `MNEMOSURE_MODEL_BRAIN` |
 | Flash | — | `MNEMOSURE_MODEL_FLASH` |
 
-### 조합 세 가지
+### 조합 네 가지
 
 **1. 그대로 쓰기** — 키 하나만 넣으면 끝. 색인은 로컬, 답변만 게이트웨이.
 
@@ -132,6 +132,20 @@ MNEMOSURE_EMBED_PROVIDER=api
 MNEMOSURE_RERANK_PROVIDER=api
 OPENROUTER_API_KEY=sk-or-...
 ```
+
+**4. 무료 모드 (크레딧 없이)** — 크레딧을 안 산 OpenRouter 계정도 `:free` 표시가 붙은
+모델은 부를 수 있다. 스위치 하나로 brain·flash 기본값이 무료 모델로 바뀐다:
+
+```bash
+MNEMOSURE_FREE=1
+OPENROUTER_API_KEY=sk-or-...
+```
+
+역할별 `MNEMOSURE_MODEL_BRAIN` / `MNEMOSURE_MODEL_FLASH` 지정은 무료 기본값보다 여전히
+우선한다. 주의 둘: 무료 모델은 **하루 요청 수 제한**이 있고(크레딧 미구매 기준 50회/일 —
+`remember` 한 번에 호출이 여러 번 나가므로 활발한 날엔 닿을 수 있다), 무료 목록은
+**수시로 바뀐다** — 기본값이 사라지면 [openrouter.ai/models](https://openrouter.ai/models?q=free)에서
+골라 역할별 변수로 지정한다.
 
 > **임베딩 방식을 바꾸면 창고를 한 번 다시 계산해야 한다.** `local`과 `api`의 기본 모델이 서로
 > 다른 벡터를 만들기 때문이다. 실행하면 안내가 뜨고, `python -m mnemosure.reembed`로 옮기면 된다
@@ -226,7 +240,7 @@ export OPENROUTER_API_KEY=sk-or-...
 mnemosure-mcp                  # stdio MCP 서버
 ```
 
-- **기억 저장 위치:** 설치본은 `~/.mnemosure/memories.json`의 *빈* 창고로 시작한다. `MNEMOSURE_DATA_DIR`로 폴더를 바꿀 수 있다.
+- **기억 저장 위치:** 설치본은 `~/.mnemosure/memories.json`의 *빈* 창고로 시작한다. `MNEMOSURE_DATA_DIR`로 폴더를 직접 바꾸거나, `MNEMOSURE_SCOPE`로 범위를 고를 수 있다 — `user`는 모든 프로젝트가 `~/.mnemosure` 창고 하나를 공유하고, `project`는 프로젝트(서버가 뜬 폴더)마다 `.mnemosure/`를 따로 쓴다. MCP 서버를 등록할 때 등록 범위와 맞춰 두면 편하다.
 - pip 패키지는 **제품만** 담는다(`config`, `llm`, `mcp_server`, `reembed`, `memory/`). 웹 데모·평가 하네스는 이 레포에 있다(클론해서 실행).
 
 ### 로컬 모델 (기본 · 추가 설치 없음)
