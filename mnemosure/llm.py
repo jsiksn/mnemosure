@@ -158,7 +158,9 @@ def _embed_local(texts: list[str]) -> list[list[float]]:
                 "Local embeddings need fastembed (a base dependency): pip install -U mnemosure\n"
                 "  (or set MNEMOSURE_EMBED_PROVIDER=api to use the gateway instead)"
             ) from e
-        _local_embedder = TextEmbedding(model_name=config.MODEL_EMBED_LOCAL)
+        _local_embedder = TextEmbedding(
+            model_name=config.MODEL_EMBED_LOCAL, **config.local_compute_kwargs()
+        )
     return [vec.tolist() for vec in _local_embedder.embed(texts)]
 
 
@@ -241,7 +243,9 @@ def _rerank_local(
                 "  (or set MNEMOSURE_RERANK_PROVIDER=api to use the gateway, "
                 "or MNEMOSURE_RERANK=off to skip rerank)"
             ) from e
-        _local_reranker = TextCrossEncoder(model_name=config.MODEL_RERANK_LOCAL)
+        _local_reranker = TextCrossEncoder(
+            model_name=config.MODEL_RERANK_LOCAL, **config.local_compute_kwargs()
+        )
 
     logits = list(_local_reranker.rerank(query, documents))
     hits = [

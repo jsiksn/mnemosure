@@ -105,6 +105,32 @@ def rerank_model_id() -> str:
     return MODEL_RERANK_LOCAL if RERANK_PROVIDER == "local" else MODEL_RERANK
 
 
+# --- 로컬 계산 가속 (EMBED_PROVIDER / RERANK_PROVIDER 가 local 일 때만) --------
+# fastembed 는 기본이 CPU다. GPU가 있으면 켜야 실제로 빨라진다.
+#   MNEMOSURE_LOCAL_CUDA=1                 CUDA 사용(onnxruntime-gpu 설치 필요)
+#   MNEMOSURE_LOCAL_DEVICE_IDS=0,1         쓸 GPU 번호
+#   MNEMOSURE_LOCAL_THREADS=8              CPU 스레드 수(GPU가 없을 때 이걸 올리면 낫다)
+# ROCm(AMD)·DirectML 등은 표준 onnxruntime 에 없으므로, 그런 장비는 임베딩만 로컬 서버로
+# 보내는 편이 낫다(EMBED_PROVIDER=api + MNEMOSURE_EMBED_BASE_URL).
+LOCAL_CUDA = os.environ.get("MNEMOSURE_LOCAL_CUDA", "").lower() in ("1", "true", "on", "yes")
+_ids = os.environ.get("MNEMOSURE_LOCAL_DEVICE_IDS", "").strip()
+LOCAL_DEVICE_IDS = [int(x) for x in _ids.split(",") if x.strip().isdigit()] or None
+_th = os.environ.get("MNEMOSURE_LOCAL_THREADS", "").strip()
+LOCAL_THREADS = int(_th) if _th.isdigit() else None
+
+
+def local_compute_kwargs() -> dict:
+    """fastembed 생성자에 넘길 가속 설정. 지정 안 한 값은 넘기지 않아 fastembed 기본을 따른다."""
+    kw = {}
+    if LOCAL_CUDA:
+        kw["cuda"] = True
+        if LOCAL_DEVICE_IDS:
+            kw["device_ids"] = LOCAL_DEVICE_IDS
+    if LOCAL_THREADS:
+        kw["threads"] = LOCAL_THREADS
+    return kw
+
+
 # --- rerank 사용 여부 --------------------------------------------------------
 # "on" : 회수 후보를 rerank 모델로 재정렬(기본, 권장).
 # "off": rerank 호출 없이 1차 유사도(코사인) 점수로 순위·모름 판정. 비용 절감용.

@@ -73,8 +73,25 @@ searching them happens locally; the only outbound call is the one that composes 
 to a question. The high-volume side is local, so actual spend is near zero.
 
 On first use about 3.4GB of weights (2.24 embedding + 1.11 rerank) is fetched once from
-Hugging Face and cached — after that it runs offline. Without a GPU the first index is
-slow (see "everything through the gateway" below).
+Hugging Face and cached — after that it runs offline.
+
+**Speed depends on your hardware.** fastembed defaults to CPU. Measured on a laptop CPU,
+embedding runs at 2.8 texts/sec, so a large store takes a while to index the first time —
+roughly 6 minutes for 1,000 memories, 2 hours for 20,000. Three ways to address it:
+
+```bash
+MNEMOSURE_LOCAL_THREADS=8         # more CPU threads (when there is no GPU)
+MNEMOSURE_LOCAL_CUDA=1            # use CUDA (requires onnxruntime-gpu)
+MNEMOSURE_LOCAL_DEVICE_IDS=0,1    # which GPUs to use
+```
+
+Non-CUDA accelerators (AMD/ROCm and friends) are not covered by the standard onnxruntime
+build, so on those machines it is better to **send only embedding to that machine's
+inference server** — `MNEMOSURE_EMBED_PROVIDER=api` plus `MNEMOSURE_EMBED_BASE_URL` (see
+"send only embedding elsewhere" below). Indexing still runs on your own hardware and
+nothing leaves it.
+
+To hand it all to the gateway instead, see "everything through the gateway" below.
 
 ### Choosing where each role runs
 
@@ -135,11 +152,37 @@ host directly (Cohere convention), and ordinary local inference servers do not s
 When moving `BASE_URL`, leave rerank on `local` (the default). To skip rerank entirely use
 `MNEMOSURE_RERANK=off` — ranking and the honesty gate then use the first-pass cosine score.
 
-**Honesty-gate floors are model-specific.** The defaults for `MNEMOSURE_RERANK_FLOOR`
-(rerank scores) and `MNEMOSURE_COSINE_FLOOR` (rerank off) are calibrated for the
-corresponding default models. If you change models, re-check on your own data: too high a
-floor answers "not in the record" for memories you actually have; too low a floor answers
-from irrelevant evidence.
+**The honesty-gate floor belongs to whichever model produced the score.** Recall stops
+before calling the answer model — replying "not in the record" — when the best candidate's
+score falls below the floor. **Which model's score that is depends on whether rerank is
+on**, so there are two floors, with different conditions for re-tuning.
+
+| Rerank | Score the floor reads | Variable | Default |
+|---|---|---|---|
+| on (default) | relevance from the **rerank model** | `MNEMOSURE_RERANK_FLOOR` | `local` 0.20 · `api` 0.15 |
+| off (`MNEMOSURE_RERANK=off`) | cosine from the **embedding model** | `MNEMOSURE_COSINE_FLOOR` | 0.35 |
+
+**When to re-tune:**
+
+| What you changed | What to re-tune |
+|---|---|
+| Rerank model (`MODEL_RERANK` / `MODEL_RERANK_LOCAL`) | `RERANK_FLOOR` |
+| Rerank provider (`RERANK_PROVIDER`) | `RERANK_FLOOR` — the default differs per provider, so revisit any value you set explicitly |
+| Embedding model — **with rerank on** | **Nothing.** Rerank scores read the question and document together, so they are independent of the embedding |
+| Embedding model — **with rerank off** | `COSINE_FLOOR` — the floor is reading embedding cosines, whose distribution shifts with the model |
+
+So **if you plan to change the embedding model, leave rerank on** — there is then no floor
+to re-tune. Conversely, changing the embedding while rerank is off leaves the floor and the
+model mismatched.
+
+Too high a floor answers "not in the record" for memories you actually have; too low a
+floor answers from irrelevant evidence. Which way it is wrong is visible in the candidate
+scores — `recall` returns the top score alongside the answer.
+
+The two default rerank models genuinely differ in scale: the gateway model returns 0–1
+relevance, while the local cross-encoder returns logits (measured -3.7 to +3.4). The local
+path therefore maps them through a sigmoid onto 0–1 so both read the same ruler, and even
+then the distributions differ, so each provider carries its own measured floor.
 
 ### Retrieval candidate count
 
