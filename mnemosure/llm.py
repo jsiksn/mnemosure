@@ -125,11 +125,16 @@ def chat(messages, model: str = config.MODEL_BRAIN, **opts) -> ChatResult:
 # ---------------------------------------------------------------------------
 # 2) embed — 문장 → 숫자 벡터
 # ---------------------------------------------------------------------------
-def embed(texts, model: str = config.MODEL_EMBED) -> list[list[float]]:
+def embed(
+    texts, model: str = config.MODEL_EMBED, kind: str = "passage"
+) -> list[list[float]]:
     """
     문장을 '의미를 담은 숫자 벡터'로 바꾼다. 나중에 비슷한 기억을 찾는 재료가 된다.
 
     texts: 문장 하나(str) 또는 여러 개(list[str]).
+    kind : "passage"(저장할 기억, 기본) | "query"(찾으려는 질문).
+           e5 계열 모델은 두 쪽에 다른 접두어를 붙여 훈련됐으므로 구분해서 넘긴다.
+           ★ 한쪽만 붙이면 질문·문서 벡터가 비대칭이 되어 회상이 조용히 무너진다.
     반환 : 항상 '벡터들의 리스트'. (문장 하나만 줘도 [벡터] 형태로 돌려준다)
 
     공급 방식은 config.EMBED_PROVIDER 를 따른다:
@@ -139,6 +144,9 @@ def embed(texts, model: str = config.MODEL_EMBED) -> list[list[float]]:
     """
     if isinstance(texts, str):
         texts = [texts]
+    if config.e5_prefix_active():
+        tag = "query: " if kind == "query" else "passage: "
+        texts = [tag + t for t in texts]
     if config.EMBED_PROVIDER == "local":
         return _embed_local(texts)
     resp = _get_embed_client().embeddings.create(model=model, input=texts)

@@ -78,7 +78,7 @@ class NaiveRagBaseline:
     def answer(self, question: str, model: str = config.MODEL_BRAIN) -> dict:
         if not self.chunks:
             return {"answer": "기록 없음", "confidence": "-", "tokens": 0}
-        qv = llm.embed(question)[0]
+        qv = llm.embed(question, kind="query")[0]
         top = sorted(self.chunks, key=lambda c: _cosine(qv, c[1]), reverse=True)[: self.k]
         ctx = "\n".join(f"- {t}" for t, _ in top)
         r = llm.chat(

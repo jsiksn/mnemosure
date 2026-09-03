@@ -74,9 +74,42 @@ EMBED_PROVIDER = os.environ.get("MNEMOSURE_EMBED_PROVIDER", "local").lower()
 MODEL_EMBED_LOCAL = os.environ.get("MNEMOSURE_MODEL_EMBED_LOCAL", "intfloat/multilingual-e5-large")
 
 
+# --- e5 계열 접두어 (기본 끔 — 실측에서 손해였다) -----------------------------
+# e5 계열은 질문 앞에 "query: ", 문서 앞에 "passage: " 를 붙여 훈련된 모델이고, 모델 문서도
+# 그렇게 쓰라고 한다. 그래서 붙여 보고 같은 자료로 맞대봤는데 **회수가 나빠졌다.**
+#   연구노트 1,503조각 · 질문 103개, 정답 회수율 (접두어 없음 → 붙임)
+#     상위  6개  72.8% → 66.0%   (-6.8%p)
+#     상위 40개  85.4% → 81.6%   (-3.9%p)
+#     정답 순위 75%지점  9위 → 20위
+# 여섯 개 후보 수 전부에서 나빠졌으므로 기본은 끈다. fastembed 가 이미 붙이는 것도 아니다
+# (e5 는 PooledEmbedding 으로 처리되고 접두어 전처리가 없다) — 중복이 아니라 진짜 손해다.
+#
+# 단, 위 측정의 '질문'은 결론 카드의 제목·요약이라 서술문에 가깝다. 실제 회상 질문은
+# 의문문이므로 다른 결과가 나올 수 있다. 자기 문항으로 재보고 싶으면 켤 수 있게 남겨 둔다:
+#   MNEMOSURE_E5_PREFIX=on
+# ★ 켜면 벡터가 달라져 창고가 섞이면 안 되므로, 켠 창고는 모델 id에 표시를 단다.
+_E5_PREFIX_SWITCH = os.environ.get("MNEMOSURE_E5_PREFIX", "off").lower()
+
+
+def e5_prefix_active() -> bool:
+    """지금 설정에서 e5 접두어를 붙이는가. 기본은 끔(실측에서 회수가 나빠졌다)."""
+    if EMBED_PROVIDER != "local":
+        return False        # 게이트웨이 기본(bge-m3)은 접두어를 쓰지 않는다
+    return _E5_PREFIX_SWITCH in ("on", "1", "true", "yes")
+
+
 def embed_model_id() -> str:
-    """현재 설정이 실제로 쓰는 임베딩 모델 id. 창고 메타 기록·호환 검사용."""
-    return MODEL_EMBED_LOCAL if EMBED_PROVIDER == "local" else MODEL_EMBED
+    """현재 설정이 실제로 쓰는 임베딩 모델 id. 창고 메타 기록·호환 검사용.
+
+    접두어를 붙이면 같은 모델이라도 벡터 공간이 달라지므로 id에 표시를 남긴다."""
+    if EMBED_PROVIDER != "local":
+        return MODEL_EMBED
+    return MODEL_EMBED_LOCAL + ("+e5prefix" if e5_prefix_active() else "")
+
+
+def embed_base_model(model_id: str) -> str:
+    """창고에 기록된 id에서 접두어 표시를 떼어 낸 순수 모델명."""
+    return (model_id or "").split("+e5prefix")[0]
 
 
 def embed_models_compatible(a: str, b: str) -> bool:

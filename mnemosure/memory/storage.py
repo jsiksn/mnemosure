@@ -62,15 +62,27 @@ class MemoryStore:
             ):
                 # 창고를 유지하려면 '그 모델을 쓰던 설정'으로 되돌려야 한다. 임베딩 모델은
                 # 공급 방식(local/api)에 따라 다른 변수에서 오므로, 되돌릴 변수를 정확히 지목한다.
-                if config.EMBED_PROVIDER == "local":
+                base = config.embed_base_model(meta_model)
+                had_prefix = meta_model != base
+                if had_prefix:
+                    # 같은 모델이지만 e5 접두어를 붙여 만든 창고다.
+                    keep = (
+                        f"      MNEMOSURE_EMBED_PROVIDER=local\n"
+                        f"      MNEMOSURE_MODEL_EMBED_LOCAL={base}\n"
+                        f"      MNEMOSURE_E5_PREFIX=on"
+                    )
+                elif config.EMBED_PROVIDER == "local" and base == config.MODEL_EMBED_LOCAL:
+                    # 모델은 같고 접두어만 달라진 경우 — 끄면 그대로 열린다.
+                    keep = "      MNEMOSURE_E5_PREFIX=off"
+                elif config.EMBED_PROVIDER == "local":
                     keep = (
                         f"      MNEMOSURE_EMBED_PROVIDER=api\n"
-                        f"      MNEMOSURE_MODEL_EMBED={meta_model}"
+                        f"      MNEMOSURE_MODEL_EMBED={base}"
                     )
                 else:
                     keep = (
                         f"      MNEMOSURE_EMBED_PROVIDER=local\n"
-                        f"      MNEMOSURE_MODEL_EMBED_LOCAL={meta_model}"
+                        f"      MNEMOSURE_MODEL_EMBED_LOCAL={base}"
                     )
                 raise RuntimeError(
                     f"Embedding model mismatch: this warehouse was built with '{meta_model}' "

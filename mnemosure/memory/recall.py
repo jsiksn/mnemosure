@@ -41,7 +41,17 @@ EVIDENCE_N = int(os.environ.get("MNEMOSURE_EVIDENCE_N", "4"))   # rerank 후 '�
 #     표본이 24개뿐이고 두 분포가 겹치므로, 자기 자료로 한 번 재보고 env로 조정하는 편이 좋다.
 _FLOOR_DEFAULT = "0.15" if config.RERANK_PROVIDER == "api" else "0.20"
 RERANK_FLOOR = float(os.environ.get("MNEMOSURE_RERANK_FLOOR", _FLOOR_DEFAULT))
-COSINE_FLOOR = float(os.environ.get("MNEMOSURE_COSINE_FLOOR", "0.35"))   # rerank off일 때 코사인 점수용
+
+# rerank 를 끈 경우의 문턱(1차 코사인 점수용). ★ 임베딩 모델마다 코사인 분포가 완전히 다르다.
+#   bge-m3(api)            : 0.35 기준으로 보정된 값
+#   multilingual-e5(local) : 무관한 쌍도 0.83이 나온다 — 0.35 로 두면 아무것도 걸러지지 않는다.
+#     실측(1,503조각·후보 40개 중 최상위): 정답 있음 중앙값 0.88 / 없음 중앙값 0.83
+#       문턱 0.35 → 있는데 '모른다' 0.0% · 없는데 '답함' 100.0%   ← 게이트가 없는 상태
+#       문턱 0.85 → 23.3% · 12.6%   ← 두 잘못의 합이 가장 작다
+#   두 분포가 크게 겹쳐서 코사인만으로는 게이트가 약하다. 그래서 rerank 를 켜 두는 것이 기본이다.
+#   위 두 모델이 아니면 자기 자료로 재보고 지정해야 한다.
+_COSINE_DEFAULT = "0.35" if config.EMBED_PROVIDER == "api" else "0.85"
+COSINE_FLOOR = float(os.environ.get("MNEMOSURE_COSINE_FLOOR", _COSINE_DEFAULT))
 
 
 @dataclass
@@ -119,7 +129,7 @@ def recall(query: str, store: MemoryStore, answer_model: str = config.MODEL_BRAI
         cand_view = [{"id": m.id} for m in evidence]
     else:
         # 1) 임베딩 검색 — 대체된 기억도 포함해서 모은다(바로잡으려면 옛것을 찾아야 한다).
-        qvec = llm.embed(query)[0]
+        qvec = llm.embed(query, kind="query")[0]
         scored = sorted(
             ((_cosine(qvec, m.embedding), m) for m in memories),
             key=lambda x: x[0], reverse=True,

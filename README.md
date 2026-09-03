@@ -160,7 +160,14 @@ on**, so there are two floors, with different conditions for re-tuning.
 | Rerank | Score the floor reads | Variable | Default |
 |---|---|---|---|
 | on (default) | relevance from the **rerank model** | `MNEMOSURE_RERANK_FLOOR` | `local` 0.20 · `api` 0.15 |
-| off (`MNEMOSURE_RERANK=off`) | cosine from the **embedding model** | `MNEMOSURE_COSINE_FLOOR` | 0.35 |
+| off (`MNEMOSURE_RERANK=off`) | cosine from the **embedding model** | `MNEMOSURE_COSINE_FLOOR` | `local` 0.85 · `api` 0.35 |
+
+Those two defaults differ sharply because cosine distributions differ wildly per model. e5
+(the local default) scores **0.83 even for unrelated pairs** — measured on 1,503 chunks
+(top score among 40 candidates), the median was 0.88 with the answer present and 0.83
+without. A 0.35 floor filters nothing there (100% false answers). Nor is 0.85 comfortable:
+the distributions overlap heavily, so even there it is 23% false "not in the record" and
+13% false answers. **Cosine alone is a weak gate, which is why rerank is on by default.**
 
 **When to re-tune:**
 
@@ -183,6 +190,24 @@ The two default rerank models genuinely differ in scale: the gateway model retur
 relevance, while the local cross-encoder returns logits (measured -3.7 to +3.4). The local
 path therefore maps them through a sigmoid onto 0–1 so both read the same ruler, and even
 then the distributions differ, so each provider carries its own measured floor.
+
+**e5 prefixes are off by default.** e5 models are trained with `query: ` before questions
+and `passage: ` before documents, and the model card says to use them. Measured on the same
+data, however, retrieval got **worse**:
+
+| Candidates | without prefix | with prefix |
+|---|---|---|
+| top 6 | 72.8% | 66.0% |
+| top 40 | 85.4% | 81.6% |
+
+All six candidate counts got worse, and the 75th-percentile rank of the answer slipped from
+9th to 20th. It is not a double-prefix artifact either — fastembed applies no prefix
+preprocessing to e5 (it only mean-pools). Hence the default is off.
+
+That said, the "queries" in that measurement were refined conclusion summaries, closer to
+statements than questions. Real recall queries are questions, so the result may differ. To
+test on your own questions, set `MNEMOSURE_E5_PREFIX=on` — turning it on changes the
+vectors, so the warehouse id is marked and mixing is refused.
 
 ### Retrieval candidate count
 
@@ -386,6 +411,18 @@ docker build -t mnemosure-demo .
 docker run -p 8000:8000 -e OPENROUTER_API_KEY=sk-or-... mnemosure-demo
 # → http://127.0.0.1:8000  (health: /health)
 ```
+
+## Upgrading from 0.4.0
+
+0.4.1 **leaves existing warehouses alone.** Anything built with 0.4.0 still opens.
+
+- **Fixed the cosine floor on the rerank-off path.** 0.4.0 switched the embedding default to
+  e5 but left the floor at 0.35, which was calibrated for bge-m3. Since e5 scores 0.83 even
+  for unrelated pairs, anyone running `MNEMOSURE_RERANK=off` had **an honesty gate that never
+  closed**. The default now varies by provider (`local` 0.85 · `api` 0.35). The default path
+  (rerank on) is unaffected.
+- **Added an e5 prefix switch** (`MNEMOSURE_E5_PREFIX`, default off). Turning it on measured
+  *worse* retrieval, hence the default — see "Two things to know" above.
 
 ## Upgrading from 0.3.x (breaking changes)
 
